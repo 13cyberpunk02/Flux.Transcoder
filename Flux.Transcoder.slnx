@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/application/application.csproj" Id="c2b36a92-f972-4e1b-a0eb-e05acd98ab13" />
     <Project Path="src/domain/domain.csproj" Id="70ec3adc-99af-4743-822d-3de59e54ad27" />
+    <Project Path="src/infrastructure/infrastructure.csproj" Id="b8174666-3554-47fc-b5c4-3be9d83f3152" />
   </Folder>
 </Solution>
