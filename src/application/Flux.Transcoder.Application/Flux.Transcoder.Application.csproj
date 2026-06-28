@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\domain\Flux.Transcoder.Domain\Flux.Transcoder.Domain.csproj" />
+      <ProjectReference Include="..\Flux.Transcoder.Contracts\Flux.Transcoder.Contracts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Ardalis.Specification" Version="9.3.1" />
+      <PackageReference Include="FluentValidation" Version="12.1.1" />
+      <PackageReference Include="WolverineFx" Version="6.14.0" />
+      <PackageReference Include="WolverineFx.FluentValidation" Version="6.14.0" />
+    </ItemGroup>
+
+</Project>

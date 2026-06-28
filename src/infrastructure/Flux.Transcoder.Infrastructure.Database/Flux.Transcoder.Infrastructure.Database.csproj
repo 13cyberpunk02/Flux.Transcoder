@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Ardalis.Specification.EntityFrameworkCore" Version="9.3.1" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.9" />
+      <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
+      <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.1" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+      <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+      <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+      <PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\application\Flux.Transcoder.Application\Flux.Transcoder.Application.csproj" />
+      <ProjectReference Include="..\..\domain\Flux.Transcoder.Domain\Flux.Transcoder.Domain.csproj" />
+    </ItemGroup>
+
+</Project>
