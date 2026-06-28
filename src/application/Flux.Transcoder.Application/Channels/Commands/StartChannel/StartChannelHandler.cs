@@ -3,28 +3,27 @@ using Flux.Transcoder.Application.Specifications;
 using Flux.Transcoder.Domain.Channels;
 using Flux.Transcoder.Domain.Common;
 using Wolverine;
-using BusContracts = Flux.Transcoder.Contracts.Commands;
 
 namespace Flux.Transcoder.Application.Channels.Commands.StartChannel;
 
-public static class StartChannelHandler
+public class StartChannelHandler
 {
     public static async Task HandleAsync(
-        StartChannelCommand command,
+        StartChannelRequest request,
         IRepository<Channel> channels,
         IUnitOfWork unitOfWork,
         IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var channel = await channels.FirstOrDefaultAsync(
-                          new ChannelByIdSpec(command.ChannelId), cancellationToken)
-                      ?? throw new DomainException($"Канал {command.ChannelId} не найден.");
+                          new ChannelByIdSpec(request.ChannelId), cancellationToken)
+                      ?? throw new DomainException($"Channel {request.ChannelId} not found.");
 
-        channel.Start();                  // доменный переход Idle -> Starting (+ событие)
+        channel.Start();                                  // Idle -> Starting
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // API только ПРОСИТ воркера запустить поток — сам FFmpeg здесь не трогаем
-        await bus.PublishAsync(new BusContracts.StartChannelCommand(
+        // публикуем КОНТРАКТНУЮ команду в Rabbit -> её поймает воркер
+        await bus.PublishAsync(new Contracts.Commands.StartChannelCommand(
             channel.Id,
             channel.Source.Value,
             channel.Profile.Id));

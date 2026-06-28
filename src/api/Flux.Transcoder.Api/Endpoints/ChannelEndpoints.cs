@@ -1,9 +1,11 @@
 using Flux.Transcoder.Application.Channels.Commands.CreateChannel;
+using Flux.Transcoder.Application.Channels.Commands.RestartChannel;
+using Flux.Transcoder.Application.Channels.Commands.StartChannel;
+using Flux.Transcoder.Application.Channels.Commands.StopChannel;
 using Flux.Transcoder.Application.Channels.Queries.GetChannelById;
 using Microsoft.AspNetCore.Authorization;
 using Wolverine;
 using Wolverine.Http;
-using AppStart = Flux.Transcoder.Application.Channels.Commands.StartChannel;
 
 namespace Flux.Transcoder.Api.Endpoints;
 
@@ -30,21 +32,25 @@ public static class ChannelEndpoints
         return view is null ? Results.NotFound() : Results.Ok(view);
     }
 
+
     [WolverinePost("/api/channels/{id:guid}/start")]
     public static async Task<IResult> Start(Guid id, IMessageBus bus)
     {
-        // внутренняя команда Application; хендлер сам опубликует
-        // контрактную StartChannelCommand в RabbitMQ
-        await bus.InvokeAsync(new AppStart.StartChannelCommand(id));
+        await bus.InvokeAsync(new StartChannelRequest(id));
         return Results.Accepted($"/api/channels/{id}");
     }
 
     [WolverinePost("/api/channels/{id:guid}/stop")]
     public static async Task<IResult> Stop(Guid id, IMessageBus bus)
     {
-        // здесь понадобится StopChannel-хендлер в Application
-        // (симметричен StartChannel: channel.Stop() + publish StopChannelCommand)
-        await bus.InvokeAsync(new AppStart.StartChannelCommand(id)); // TODO заменить на StopChannelCommand
+        await bus.InvokeAsync(new StopChannelRequest(id));
+        return Results.Accepted($"/api/channels/{id}");
+    }
+
+    [WolverinePost("/api/channels/{id:guid}/restart")]
+    public static async Task<IResult> Restart(Guid id, IMessageBus bus)
+    {
+        await bus.InvokeAsync(new RestartChannelRequest(id));
         return Results.Accepted($"/api/channels/{id}");
     }
 }

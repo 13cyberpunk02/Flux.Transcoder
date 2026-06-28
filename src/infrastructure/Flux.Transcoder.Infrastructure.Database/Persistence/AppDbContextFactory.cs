@@ -9,7 +9,7 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     {
         var connection = Environment.GetEnvironmentVariable("flux_transcoder_db")
                          ?? "Host=localhost;Port=5432;Database=flux_transcoder_db;Username=dev_user;Password=dev_pass12345";
-
+        
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connection)
             .Options;

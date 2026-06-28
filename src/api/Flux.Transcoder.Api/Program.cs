@@ -13,11 +13,9 @@ using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Contracts.Commands;
 using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
-using JasperFx.CodeGeneration.Model;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.FluentValidation;
-using Wolverine.Configuration;
 using Wolverine.Http;
 using Wolverine.RabbitMQ;
 
