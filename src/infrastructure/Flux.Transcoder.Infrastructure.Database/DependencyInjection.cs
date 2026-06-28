@@ -15,7 +15,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // DbContext
-        services.AddDbContext<AppDbContext>(opts =>
+        services.AddDbContextPool<AppDbContext>(opts =>
             opts.UseNpgsql(configuration.GetConnectionString("Flux-Transcoder")));
 
         // Репозитории (открытые дженерики)

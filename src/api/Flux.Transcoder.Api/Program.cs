@@ -7,11 +7,17 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text;
-using Flux.Transcoder.Api.Messaging;
+using Flux.Transcoder.Api.Extensions;
+using Flux.Transcoder.Api.Middleware;
+using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Contracts.Commands;
-using JasperFx.CodeGeneration;
+using Flux.Transcoder.Contracts.Messaging;
+using Flux.Transcoder.Infrastructure.Database.Persistence;
+using JasperFx.CodeGeneration.Model;
+using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.FluentValidation;
+using Wolverine.Configuration;
 using Wolverine.Http;
 using Wolverine.RabbitMQ;
 
@@ -24,14 +30,20 @@ builder.Host.UseSerilog();
 
 // OpenAPI для Scalar
 builder.Services.AddOpenApi();
+builder.Services.AddOpenApiExtension();
+
+// Wolverine.Http — обязателен
+builder.Services.AddWolverineHttp();
 
 //Инфраструктура JWT, Database
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // валидаторы из сборки Application — нужны FluentValidation-middleware
-builder.Services.AddValidatorsFromAssembly(ApplicationWolverineExtensions.Assembly);
+builder.Services.AddValidatorsFromAssembly(
+    ApplicationWolverineExtensions.Assembly,
+    ServiceLifetime.Singleton);
 
-builder.Services.AddWolverineHttp();
+// Wolverine: in-process медиатор + RabbitMQ-транспорт (только публикация)
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
@@ -43,12 +55,20 @@ builder.Host.UseWolverine(options =>
     
     options.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
+    
+    options.CodeGeneration.AlwaysUseServiceLocationFor<IUnitOfWork>();
+    options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IRepository<>));
+    options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IReadRepository<>));
+    options.CodeGeneration.AlwaysUseServiceLocationFor<AppDbContext>();
+    options.CodeGeneration.AlwaysUseServiceLocationFor<DbContextOptions<AppDbContext>>();
 
+
+    options.ListenToRabbitQueue(Queues.WorkerCommands);    
+    
     options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<RestartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
 });
-
 
 // JWT-аутентификация
 var jwt = builder.Configuration.GetSection("Jwt");
@@ -85,7 +105,7 @@ var app = builder.Build();
 
 // pipeline
 app.UseSerilogRequestLogging();
-//app.UseExceptionHandling();      // наш middleware из шага 6.4
+app.UseExceptionHandling();
 app.UseCors(AngularCors);
 app.UseAuthentication();
 app.UseAuthorization();

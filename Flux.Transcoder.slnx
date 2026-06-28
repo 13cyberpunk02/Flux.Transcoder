@@ -17,6 +17,9 @@
   <Folder Name="/src/shared/">
     <Project Path="src/shared/Flux.Transcoder.Shared/Flux.Transcoder.Shared.csproj" />
   </Folder>
+  <Folder Name="/src/worker/">
+    <Project Path="src/worker/Flux.Transcoder.Worker/Flux.Transcoder.Worker.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Flux.Transcoder.Domain.Tests/Flux.Transcoder.Domain.Tests.csproj" />
   </Folder>
