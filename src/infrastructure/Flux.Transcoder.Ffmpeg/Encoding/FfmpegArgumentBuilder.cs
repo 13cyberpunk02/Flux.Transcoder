@@ -9,7 +9,7 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
 {
     /// <summary>Каталог сегментов для конкретного канала.</summary>
     public string SegmentDirectory(Guid channelId) =>
-        Path.Combine(options.SegmentRoot, channelId.ToString("N"));
+        Path.Combine(options.SegmentRoot, channelId.ToString());
 
     public IReadOnlyList<string> Build(Channel channel)
     {
