@@ -8,6 +8,7 @@ using Scalar.AspNetCore;
 using Serilog;
 using System.Text;
 using Flux.Transcoder.Api.Extensions;
+using Flux.Transcoder.Api.Hubs;
 using Flux.Transcoder.Api.Middleware;
 using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Contracts.Commands;
@@ -41,6 +42,8 @@ builder.Services.AddValidatorsFromAssembly(
     ApplicationWolverineExtensions.Assembly,
     ServiceLifetime.Singleton);
 
+builder.Services.AddSignalR();
+
 // Wolverine: in-process медиатор + RabbitMQ-транспорт (только публикация)
 builder.Host.UseWolverine(options =>
 {
@@ -51,6 +54,8 @@ builder.Host.UseWolverine(options =>
     var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
                  ?? "amqp://dev_user:dev_pass12345@localhost:5672";
     
+    options.ListenToRabbitQueue(Queues.HealthReports);
+    
     options.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
     
@@ -59,9 +64,6 @@ builder.Host.UseWolverine(options =>
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IReadRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor<AppDbContext>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<DbContextOptions<AppDbContext>>();
-
-
-    options.ListenToRabbitQueue(Queues.WorkerCommands);    
     
     options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
@@ -100,6 +102,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.MapHub<ChannelsHub>("/hubs/channels");
 
 // pipeline
 app.UseSerilogRequestLogging();
