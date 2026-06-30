@@ -1,4 +1,5 @@
 using Flux.Transcoder.Application.Profiles.Commands.CreateProfile;
+using Flux.Transcoder.Application.Profiles.Queries.GetAllProfiles;
 using Flux.Transcoder.Domain.Encoding;
 using Microsoft.AspNetCore.Authorization;
 using Wolverine;
@@ -12,6 +13,11 @@ public sealed record CreateProfileRequest(string Name, IReadOnlyList<RenditionDt
 [Authorize]
 public class ProfileEndpoints
 {
+ 
+    [WolverineGet("/api/profiles")]
+    public static async Task<IReadOnlyList<ProfileView>> GetAll(IMessageBus bus)
+        => await bus.InvokeAsync<IReadOnlyList<ProfileView>>(new GetAllProfilesQuery());
+    
     [WolverinePost("/api/profiles")]
     public static async Task<IResult> Create(CreateProfileRequest request, IMessageBus bus)
     {

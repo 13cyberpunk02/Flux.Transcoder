@@ -16,6 +16,8 @@ import { Router } from '@angular/router';
           <a routerLink="/channels" class="font-semibold tracking-tight text-lg">
             Flux<span class="text-indigo-400">Transcoder</span>
           </a>
+          <a routerLink="/channels" class="text-slate-300 hover:text-white">Каналы</a>
+          <a routerLink="/profiles" class="text-slate-300 hover:text-white">Профили</a>
           <div class="flex items-center gap-4 text-sm">
             <span class="text-slate-400">
               в эфире: <span class="text-emerald-400 font-medium">{{ store.runningCount() }}</span>

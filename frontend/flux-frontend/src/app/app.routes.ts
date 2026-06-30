@@ -24,6 +24,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/channels/channel-detail.component').then(m => m.ChannelDetailComponent),
       },
+      {
+        path: 'profiles',
+        loadComponent: () =>
+          import('./features/profiles/profile-list.component').then(m => m.ProfileListComponent),
+      }
     ],
   },
   { path: '**', redirectTo: '' },

@@ -3,7 +3,6 @@ using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Ffmpeg;
 using Flux.Transcoder.Infrastructure.Database;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
-using Flux.Transcoder.Worker;
 using Flux.Transcoder.Worker.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;

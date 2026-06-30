@@ -30,6 +30,13 @@ import {ChannelView} from '../../core/api/models';
                 class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 transition font-medium">
           Старт
         </button>
+
+        <button (click)="store.restart(ch.channelId)"
+                [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
+                class="px-4 py-2 rounded-md bg-amber-600 hover:bg-amber-500 disabled:opacity-40 transition font-medium">
+          Рестарт
+        </button>
+
         <button (click)="store.stop(ch.channelId)"
                 [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
                 class="px-4 py-2 rounded-md bg-rose-600 hover:bg-rose-500 disabled:opacity-40 transition font-medium">
@@ -76,7 +83,7 @@ export class ChannelDetailComponent implements OnInit {
     this.store.channels().find(c => c.channelId === this.id()));
   readonly report = computed(() => this.store.health()[this.id()]);
 
-  ngOnInit(): void { this.store.loadChannel(this.id()); }
+  ngOnInit(): void { this.store.loadAll(); }
 
   badgeClass(status: ChannelView['status']): string {
     switch (status) {

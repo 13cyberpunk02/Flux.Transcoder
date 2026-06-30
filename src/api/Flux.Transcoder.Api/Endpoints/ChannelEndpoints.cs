@@ -2,6 +2,7 @@ using Flux.Transcoder.Application.Channels.Commands.CreateChannel;
 using Flux.Transcoder.Application.Channels.Commands.RestartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StopChannel;
+using Flux.Transcoder.Application.Channels.Queries.GetAllChannels;
 using Flux.Transcoder.Application.Channels.Queries.GetChannelById;
 using Microsoft.AspNetCore.Authorization;
 using Wolverine;
@@ -24,6 +25,10 @@ public static class ChannelEndpoints
 
         return Results.Created($"/api/channels/{result.ChannelId}", result);
     }
+    
+    [WolverineGet("/api/channels")]
+    public static async Task<IReadOnlyList<ChannelView>> GetAll(IMessageBus bus)
+        => await bus.InvokeAsync<IReadOnlyList<ChannelView>>(new GetAllChannelsQuery());
 
     [WolverineGet("/api/channels/{id:guid}")]
     public static async Task<IResult> GetById(Guid id, IMessageBus bus)

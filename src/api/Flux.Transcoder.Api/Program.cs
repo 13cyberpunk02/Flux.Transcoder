@@ -49,22 +49,24 @@ builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
     options.UseApplicationLayer();
-    
     options.UseFluentValidation();
+
     var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
                  ?? "amqp://dev_user:dev_pass12345@localhost:5672";
-    
-    options.ListenToRabbitQueue(Queues.HealthReports);
-    
+
+    // СНАЧАЛА транспорт
     options.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
-    
+
     options.CodeGeneration.AlwaysUseServiceLocationFor<IUnitOfWork>();
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IReadRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor<AppDbContext>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<DbContextOptions<AppDbContext>>();
-    
+
+    // ПОТОМ маршруты — listen и publish
+    options.ListenToRabbitQueue(Queues.HealthReports);
+
     options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<RestartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
