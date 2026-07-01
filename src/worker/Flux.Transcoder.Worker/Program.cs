@@ -34,17 +34,19 @@ builder.UseWolverine(opts =>
     var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
                  ?? "amqp://dev_user:dev_pass12345@localhost:5672";
 
+    // 1) СНАЧАЛА транспорт
     opts.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
 
-    // КЛЮЧЕВОЕ ОТЛИЧИЕ ОТ API: воркер слушает очередь, а не публикует в неё
-    opts.ListenToRabbitQueue(Queues.WorkerCommands);
-    
-    
+    // 2) service location для EF
     opts.CodeGeneration.AlwaysUseServiceLocationFor<AppDbContext>();
     opts.CodeGeneration.AlwaysUseServiceLocationFor<DbContextOptions<AppDbContext>>();
 
-    // обратные health-события воркер публикует в отдельную очередь
+    // 3) ПОТОМ маршруты
+    // воркер СЛУШАЕТ команды
+    opts.ListenToRabbitQueue(Queues.WorkerCommands);
+
+    // воркер ПУБЛИКУЕТ health в свою очередь
     opts.PublishMessage<ChannelHealthReport>().ToRabbitQueue(Queues.HealthReports);
 });
 

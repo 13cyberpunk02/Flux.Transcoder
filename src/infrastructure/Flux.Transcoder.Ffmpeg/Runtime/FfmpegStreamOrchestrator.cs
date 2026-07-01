@@ -51,6 +51,7 @@ public sealed class FfmpegStreamOrchestrator(
         {
             if (e.Data is not null)
                 _progressParser.Feed(channel.Id, e.Data);
+                
         };
 
         // stderr -> логи

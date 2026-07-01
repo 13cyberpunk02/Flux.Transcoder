@@ -25,7 +25,8 @@ public static class DependencyInjection
         services.AddSingleton<SegmentHealthCheck>(sp =>
             new SegmentHealthCheck(sp.GetRequiredService<FfmpegArgumentBuilder>()));
         services.AddSingleton<RestartPolicy>();
-
+        services.AddSingleton<BitrateMeter>(sp =>
+            new BitrateMeter(sp.GetRequiredService<FfmpegArgumentBuilder>()));
         services.AddSingleton<IStreamOrchestrator, FfmpegStreamOrchestrator>();
 
         return services;

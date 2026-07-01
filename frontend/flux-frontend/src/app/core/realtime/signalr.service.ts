@@ -20,7 +20,10 @@ export class SignalRService {
 
     this.connection.on('channelHealth', (report: ChannelHealthReport) => {
       this.store.applyHealth(report);
-      this.store.patchStatus(report.channelId, report.status as any);
+    });
+
+    this.connection.on('channelStatusChanged', (msg: { channelId: string; status: string }) => {
+      this.store.patchStatus(msg.channelId, msg.status as any);
     });
 
     this.connection.start().catch(err => console.error('SignalR:', err));

@@ -54,22 +54,26 @@ builder.Host.UseWolverine(options =>
     var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
                  ?? "amqp://dev_user:dev_pass12345@localhost:5672";
 
-    // СНАЧАЛА транспорт
+    // 1) СНАЧАЛА транспорт
     options.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
 
+    // 2) service location для EF
     options.CodeGeneration.AlwaysUseServiceLocationFor<IUnitOfWork>();
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IReadRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor<AppDbContext>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<DbContextOptions<AppDbContext>>();
 
-    // ПОТОМ маршруты — listen и publish
-    options.ListenToRabbitQueue(Queues.HealthReports);
-
+    // 3) ПОТОМ маршруты
+    // API ПУБЛИКУЕТ команды воркеру
     options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
     options.PublishMessage<RestartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
+    
+    options.Discovery.IncludeAssembly(typeof(ChannelHealthHandler).Assembly);
+    // API СЛУШАЕТ health от воркера
+    options.ListenToRabbitQueue(Queues.HealthReports);
 });
 
 // JWT-аутентификация
