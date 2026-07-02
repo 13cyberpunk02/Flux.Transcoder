@@ -10,10 +10,10 @@ public sealed class FfmpegOptions
     public string BinaryPath { get; set; } = "ffmpeg";
 
     /// <summary>Горячее хранилище: быстрый локальный диск. Сюда пишет ffmpeg (live + свежий архив).</summary>
-    public string HotRoot { get; set; } = @"D:\broadcast\hot";
+    public string HotRoot { get; set; } = @"D:\fluxcast\hot";
 
     /// <summary>Холодное хранилище: NAS. Сюда переносятся остывшие архивные сегменты.</summary>
-    public string ColdRoot { get; set; } = @"D:\broadcast\cold";
+    public string ColdRoot { get; set; } = @"D:\fluxcast\cold";
 
     public int HlsTimeSeconds { get; set; } = 4;
 

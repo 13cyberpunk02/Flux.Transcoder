@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text;
+using Flux.Transcoder.Api.Archive;
 using Flux.Transcoder.Api.Extensions;
 using Flux.Transcoder.Api.Hubs;
 using Flux.Transcoder.Api.Middleware;
@@ -43,6 +44,9 @@ builder.Services.AddValidatorsFromAssembly(
     ServiceLifetime.Singleton);
 
 builder.Services.AddSignalR();
+
+//Сервис которая строит архивные передачи потока.
+builder.Services.AddSingleton<ArchivePlaylistBuilder>();
 
 // Wolverine: in-process медиатор + RabbitMQ-транспорт (только публикация)
 builder.Host.UseWolverine(options =>

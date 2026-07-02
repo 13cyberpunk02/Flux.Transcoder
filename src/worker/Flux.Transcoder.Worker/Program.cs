@@ -13,7 +13,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // Serilog
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
+    .MinimumLevel.Debug()
     .Enrich.FromLogContext()
     .WriteTo.Console()
     .CreateLogger();

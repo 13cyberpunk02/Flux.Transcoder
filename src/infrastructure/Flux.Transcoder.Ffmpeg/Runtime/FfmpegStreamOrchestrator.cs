@@ -29,7 +29,7 @@ public sealed class FfmpegStreamOrchestrator(
         }
 
         var args = argumentBuilder.Build(channel);
-
+        logger.LogInformation("FFMPEG ARGS: {Args}", string.Join(" ", args));
         var psi = new ProcessStartInfo
         {
             FileName = _options.BinaryPath,

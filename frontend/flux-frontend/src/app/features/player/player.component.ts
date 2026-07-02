@@ -18,7 +18,7 @@ export class PlayerComponent implements OnDestroy {
     effect(() => {
       const id = this.channelId();
       const video = this.videoRef().nativeElement;
-      const url = `${this.hlsBase}/${id}/master.m3u8`;
+      const url = `${this.hlsBase}/${id}/live/live.m3u8`;
 
       this.hls?.destroy();
 
