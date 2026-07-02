@@ -9,6 +9,7 @@ public sealed class Channel : AggregateRoot
     public SourceUrl Source { get; private set; }
     public EncodingProfile Profile { get; private set; }
     public ChannelStatus Status { get; private set; }
+    public RetentionPolicy Retention { get; private set; }
 
     private Channel() { }
     
@@ -19,11 +20,16 @@ public sealed class Channel : AggregateRoot
         Status = ChannelStatus.Idle;
     }
 
-    public static Channel Create(SourceUrl source, EncodingProfile profile)
+    public static Channel Create(SourceUrl source, EncodingProfile profile, RetentionPolicy? retention = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(profile);
-        return new Channel(Guid.NewGuid(), source, profile);
+
+        var channel = new Channel(Guid.NewGuid(), source, profile)
+        {
+            Retention = retention ?? RetentionPolicy.Default
+        };
+        return channel;
     }
 
     public void Start()
@@ -51,6 +57,12 @@ public sealed class Channel : AggregateRoot
 
         Status = ChannelStatus.Failed;
         Raise(new ChannelFailed(Id, reason));
+    }
+    
+    public void UpdateRetention(RetentionPolicy retention)
+    {
+        ArgumentNullException.ThrowIfNull(retention);
+        Retention = retention;
     }
 
     public void Stop()

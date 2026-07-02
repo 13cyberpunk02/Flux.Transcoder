@@ -14,7 +14,7 @@ public sealed class SegmentHealthCheck(FfmpegArgumentBuilder argumentBuilder, Ti
     /// </summary>
     public HealthState Check(Guid channelId)
     {
-        var dir = argumentBuilder.SegmentDirectory(channelId);
+        var dir = argumentBuilder.LiveDirectory(channelId);
         if (!Directory.Exists(dir)) return HealthState.Unknown;
 
         var segments = Directory.GetFiles(dir, "*.ts");

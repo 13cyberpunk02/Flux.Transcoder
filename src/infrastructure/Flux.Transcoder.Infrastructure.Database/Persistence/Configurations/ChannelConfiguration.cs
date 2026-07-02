@@ -35,6 +35,17 @@ public sealed class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired();
 
+        builder.OwnsOne(c => c.Retention, r =>
+        {
+            r.Property(x => x.HotWindow)
+                .HasColumnName("hot_window")
+                .IsRequired();
+
+            r.Property(x => x.ArchiveRetention)
+                .HasColumnName("archive_retention")
+                .IsRequired();
+        });
+        
         // доменные события не персистятся
         builder.Ignore(c => c.DomainEvents);
     }

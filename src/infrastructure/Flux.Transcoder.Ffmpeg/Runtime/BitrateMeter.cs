@@ -20,7 +20,7 @@ public sealed class BitrateMeter(FfmpegArgumentBuilder argumentBuilder)
     /// </summary>
     public double MeasureKbps(Guid channelId)
     {
-        var dir = argumentBuilder.SegmentDirectory(channelId);
+        var dir = argumentBuilder.LiveDirectory(channelId);
         if (!Directory.Exists(dir))
             return 0;
 

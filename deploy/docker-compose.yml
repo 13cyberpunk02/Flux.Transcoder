@@ -32,7 +32,7 @@ services:
       - "3088:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - D:/dev/shm/fluxcast:/srv/hls:ro
+      - G:/dev/shm/fluxcast:/srv/hls:ro
     restart: unless-stopped
   
 volumes:
