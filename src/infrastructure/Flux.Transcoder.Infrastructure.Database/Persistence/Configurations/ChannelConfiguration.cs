@@ -37,10 +37,6 @@ public sealed class ChannelConfiguration : IEntityTypeConfiguration<Channel>
 
         builder.OwnsOne(c => c.Retention, r =>
         {
-            r.Property(x => x.HotWindow)
-                .HasColumnName("hot_window")
-                .IsRequired();
-
             r.Property(x => x.ArchiveRetention)
                 .HasColumnName("archive_retention")
                 .IsRequired();

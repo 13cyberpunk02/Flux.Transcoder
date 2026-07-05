@@ -1,6 +1,7 @@
 using Flux.Transcoder.Contracts.Events;
 using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Ffmpeg;
+using Flux.Transcoder.Ffmpeg.Runtime;
 using Flux.Transcoder.Infrastructure.Database;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
 using Flux.Transcoder.Worker.Services;
@@ -24,7 +25,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // FFmpeg-оркестрация: IStreamOrchestrator, ProcessSupervisor, ProgressParser и т.д.
 builder.Services.AddFfmpeg(builder.Configuration);
-
+builder.Services.AddSingleton<RestartCoordinator>();
+builder.Services.AddSingleton<RestartPolicy>();
 
 // Wolverine: СЛУШАЕТ очередь команд
 builder.UseWolverine(opts =>

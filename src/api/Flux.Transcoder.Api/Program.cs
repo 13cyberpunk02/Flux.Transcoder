@@ -102,6 +102,7 @@ builder.Services.AddAuthorization();
 
 // CORS под Angular
 const string AngularCors = "angular";
+const string PlayerCors = "player";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AngularCors, policy =>
@@ -109,6 +110,11 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());
+    
+    options.AddPolicy(PlayerCors, policy =>
+        policy.AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 var app = builder.Build();

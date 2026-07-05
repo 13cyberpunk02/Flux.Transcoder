@@ -5,6 +5,7 @@ namespace Flux.Transcoder.Worker.Services;
 public sealed class ProcessReaperService(
     ProcessSupervisor supervisor,
     SegmentHealthCheck health,
+    RestartCoordinator restartCoordinator,
     ILogger<ProcessReaperService> logger)
     : BackgroundService
 {
@@ -28,14 +29,15 @@ public sealed class ProcessReaperService(
                     continue;
                 }
 
-                // источник завис: сегменты перестали появляться, но процесс жив —
-                // это кандидат на restart policy (см. Фазу 5.7)
                 if (health.Check(proc.ChannelId) == HealthState.Stalled)
                 {
                     logger.LogWarning(
-                        "Канал с Id {ChannelId} завис — свежие видео сегменты не приходят", proc.ChannelId);
-                    // здесь точка интеграции с RestartPolicy:
-                    // _supervisor.Stop(proc.ChannelId) + запланировать рестарт с backoff
+                        "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
+                    restartCoordinator.OnStalled(proc.ChannelId);
+                }
+                else if (health.Check(proc.ChannelId) == HealthState.Healthy)
+                {
+                    restartCoordinator.OnHealthy(proc.ChannelId);
                 }
             }
         }

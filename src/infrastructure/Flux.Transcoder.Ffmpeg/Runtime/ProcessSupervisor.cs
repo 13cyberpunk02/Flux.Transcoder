@@ -36,7 +36,7 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
     }
 
     public RunningProcess? Get(Guid channelId) =>
-        _processes.TryGetValue(channelId, out var proc) ? proc : null;
+        _processes.GetValueOrDefault(channelId);
 
     public IReadOnlyCollection<RunningProcess> All() => _processes.Values.ToList();
 }

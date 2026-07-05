@@ -5,7 +5,7 @@ namespace Flux.Transcoder.Api.Archive;
 
 public sealed class ArchivePlaylistBuilder(IConfiguration config)
 {
-    private readonly string _archiveRoot = config["Archive:HotRoot"] ?? @"D:\fluxcast\hot";   // D:\fluxcast\hot (корень, где лежат каналы)
+    private readonly string _archiveRoot = config["Archive:SegmentRoot"] ?? @"D:\fluxcast\storage";   // D:\fluxcast\hot (корень, где лежат каналы)
     private readonly string _nginxBaseUrl = config["Archive:NginxBaseUrl"] ?? "http://localhost:3088";  // http://localhost:3088
 
     /// <summary>
@@ -31,7 +31,6 @@ public sealed class ArchivePlaylistBuilder(IConfiguration config)
         sb.AppendLine("#EXT-X-VERSION:6");
         sb.AppendLine("#EXT-X-TARGETDURATION:5");
         sb.AppendLine("#EXT-X-MEDIA-SEQUENCE:0");
-        sb.AppendLine("#EXT-X-PLAYLIST-TYPE:VOD");
         sb.AppendLine("#EXT-X-INDEPENDENT-SEGMENTS");
 
         for (var i = 0; i < segments.Count; i++)
@@ -47,7 +46,6 @@ public sealed class ArchivePlaylistBuilder(IConfiguration config)
             sb.AppendLine(seg.HttpUrl);
         }
 
-        sb.AppendLine("#EXT-X-ENDLIST");
         return sb.ToString();
     }
 

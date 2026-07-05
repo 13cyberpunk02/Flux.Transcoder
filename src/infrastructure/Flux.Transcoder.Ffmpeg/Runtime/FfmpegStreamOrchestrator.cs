@@ -16,13 +16,11 @@ public sealed class FfmpegStreamOrchestrator(
     ILogger<FfmpegStreamOrchestrator> logger)
     : IStreamOrchestrator
 {
-    private readonly ProcessSupervisor _supervisor = supervisor;
-    private readonly ProgressParser _progressParser = progressParser;
     private readonly FfmpegOptions _options = options.Value;
 
     public Task StartAsync(Channel channel, CancellationToken cancellationToken = default)
     {
-        if (_supervisor.IsRunning(channel.Id))
+        if (supervisor.IsRunning(channel.Id))
         {
             logger.LogWarning("Channel {ChannelId} already running", channel.Id);
             return Task.CompletedTask;
@@ -50,7 +48,7 @@ public sealed class FfmpegStreamOrchestrator(
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data is not null)
-                _progressParser.Feed(channel.Id, e.Data);
+                progressParser.Feed(channel.Id, e.Data);
                 
         };
 
@@ -65,7 +63,7 @@ public sealed class FfmpegStreamOrchestrator(
         {
             logger.LogInformation(
                 "ffmpeg exited for {ChannelId}, code {Code}", channel.Id, process.ExitCode);
-            _supervisor.Unregister(channel.Id);
+            supervisor.Unregister(channel.Id);
         };
 
         if (!process.Start())
@@ -74,7 +72,7 @@ public sealed class FfmpegStreamOrchestrator(
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        _supervisor.Register(channel.Id, process.Id, cts, process);
+        supervisor.Register(channel.Id, process.Id, cts, process);
         logger.LogInformation(
             "ffmpeg started for {ChannelId}, pid {Pid}", channel.Id, process.Id);
 
@@ -86,7 +84,7 @@ public sealed class FfmpegStreamOrchestrator(
 
     public Task StopAsync(Guid channelId, CancellationToken cancellationToken = default)
     {
-        _supervisor.Stop(channelId);   // отмена CTS -> сработает Register выше
+        supervisor.Stop(channelId);
         return Task.CompletedTask;
     }
 

@@ -35,7 +35,7 @@ public sealed class ProgressParser
     }
 
     public ProgressSnapshot? Latest(Guid channelId) =>
-        _latest.TryGetValue(channelId, out var s) ? s : null;
+        _latest.GetValueOrDefault(channelId);
 
     public void Reset(Guid channelId)
     {

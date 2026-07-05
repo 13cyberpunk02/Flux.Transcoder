@@ -18,6 +18,7 @@
     <Project Path="src/shared/Flux.Transcoder.Shared/Flux.Transcoder.Shared.csproj" />
   </Folder>
   <Folder Name="/src/worker/">
+    <Project Path="src/worker/Flux.Transcoder.Cleaner/Flux.Transcoder.Cleaner.csproj" />
     <Project Path="src/worker/Flux.Transcoder.Worker/Flux.Transcoder.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -21,7 +21,7 @@ public sealed class SegmentHealthCheck(FfmpegArgumentBuilder argumentBuilder, Ti
         if (segments.Length == 0) return HealthState.Unknown;
 
         var newest = segments
-            .Select(f => File.GetLastWriteTimeUtc(f))
+            .Select(File.GetLastWriteTimeUtc)
             .Max();
 
         var age = DateTime.UtcNow - newest;

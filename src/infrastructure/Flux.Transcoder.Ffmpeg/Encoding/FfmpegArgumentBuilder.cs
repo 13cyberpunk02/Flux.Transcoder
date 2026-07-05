@@ -7,17 +7,13 @@ namespace Flux.Transcoder.Ffmpeg.Encoding;
 
 public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
 {
-    /// <summary>Папка live-плейлиста и его сегментов (горячее, короткое окно).</summary>
+    /// <summary>Папка live-плейлиста и его сегментов (короткое скользящее окно).</summary>
     public string LiveDirectory(Guid channelId) =>
-        Path.Combine(options.HotRoot, channelId.ToString(), "live");
+        Path.Combine(options.SegmentRoot, channelId.ToString(), "live");
 
-    /// <summary>Корень архива канала в горячем хранилище (raw-сегменты по времени).</summary>
-    public string ArchiveHotRoot(Guid channelId) =>
-        Path.Combine(options.HotRoot, channelId.ToString(), "archive");
-
-    /// <summary>Корень архива канала в холодном хранилище (NAS).</summary>
-    public string ArchiveColdRoot(Guid channelId) =>
-        Path.Combine(options.ColdRoot, channelId.ToString(), "archive");
+    /// <summary>Корень архива канала (raw-сегменты, разложенные по времени).</summary>
+    public string ArchiveDirectory(Guid channelId) =>
+        Path.Combine(options.SegmentRoot, channelId.ToString(), "archive");
 
     public IReadOnlyList<string> Build(Channel channel)
     {
@@ -26,12 +22,12 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
             .First();
 
         var liveDir = LiveDirectory(channel.Id);
-        var archiveDir = ArchiveHotRoot(channel.Id);
+        var archiveDir = ArchiveDirectory(channel.Id);
         Directory.CreateDirectory(liveDir);
         Directory.CreateDirectory(archiveDir);
 
-        var liveSegments   = ToFfmpegPath(Path.Combine(liveDir, "seg_%d.ts"));
-        var livePlaylist   = ToFfmpegPath(Path.Combine(liveDir, "live.m3u8"));
+        var liveSegments    = ToFfmpegPath(Path.Combine(liveDir, "seg_%d.ts"));
+        var livePlaylist    = ToFfmpegPath(Path.Combine(liveDir, "live.m3u8"));
         var archiveSegments = ToFfmpegPath(
             Path.Combine(archiveDir, "%Y-%m-%d", "%H", "seg_%Y%m%d_%H%M%S.ts"));
         var archivePlaylist = ToFfmpegPath(Path.Combine(archiveDir, "current.m3u8"));
@@ -76,7 +72,6 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
         return args;
     }
 
-
     private static string CodecName(EncoderType encoder) => encoder switch
     {
         EncoderType.X264  => "libx264",
@@ -85,6 +80,5 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
         _ => "libx264"
     };
 
-    // Windows-путь -> ffmpeg-совместимый (прямые слэши)
     private static string ToFfmpegPath(string path) => path.Replace('\\', '/');
 }
