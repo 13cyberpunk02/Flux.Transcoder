@@ -12,6 +12,7 @@ public sealed class FfmpegStreamOrchestrator(
     FfmpegArgumentBuilder argumentBuilder,
     ProcessSupervisor supervisor,
     ProgressParser progressParser,
+    RestartCoordinator restartCoordinator,
     IOptions<FfmpegOptions> options,
     ILogger<FfmpegStreamOrchestrator> logger)
     : IStreamOrchestrator
@@ -61,9 +62,27 @@ public sealed class FfmpegStreamOrchestrator(
 
         process.Exited += (_, _) =>
         {
+            var exitCode = process.ExitCode;
+
+            // ВАЖНО: проверяем флаг ДО Unregister (после — запись исчезнет)
+            var wasIntentional = supervisor.WasIntentionalStop(channel.Id);
+
             logger.LogInformation(
-                "ffmpeg exited for {ChannelId}, code {Code}", channel.Id, process.ExitCode);
+                "ffmpeg exited for {ChannelId}, code {Code}, intentional={Intentional}",
+                channel.Id, exitCode, wasIntentional);
+
             supervisor.Unregister(channel.Id);
+
+            // перезапускаем ТОЛЬКО если:
+            // - остановка НЕ была намеренной (не пользователь нажал Stop)
+            // - и процесс завершился с ошибкой (код != 0)
+            if (!wasIntentional && exitCode != 0)
+            {
+                logger.LogWarning(
+                    "ffmpeg для {ChannelId} умер неожиданно (код {Code}) — запускаю перезапуск",
+                    channel.Id, exitCode);
+                restartCoordinator.OnStalled(channel.Id);
+            }
         };
 
         if (!process.Start())

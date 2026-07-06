@@ -68,7 +68,7 @@ public sealed class Channel : AggregateRoot
     public void Stop()
     {
         if (Status is ChannelStatus.Idle or ChannelStatus.Stopped)
-            throw new DomainException($"Cannot stop channel from status {Status}.");
+            throw new DomainException($"Невозможно изменить статус канала со статуса {Status}.");
 
         Status = ChannelStatus.Stopped;
         Raise(new ChannelStopped(Id));

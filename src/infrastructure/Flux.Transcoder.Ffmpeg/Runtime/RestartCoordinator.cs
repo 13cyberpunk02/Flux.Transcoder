@@ -9,7 +9,6 @@ namespace Flux.Transcoder.Ffmpeg.Runtime;
 
 public sealed class RestartCoordinator(
     ProcessSupervisor supervisor,
-    IStreamOrchestrator orchestrator,
     RestartPolicy policy,
     IServiceProvider services,
     ILogger<RestartCoordinator> logger)
@@ -21,7 +20,6 @@ public sealed class RestartCoordinator(
     /// <summary>Вызывается reaper'ом, когда канал завис (Stalled).</summary>
     public void OnStalled(Guid channelId)
     {
-        // если перезапуск уже идёт для этого канала — не дублируем
         if (!_restarting.TryAdd(channelId, true))
             return;
 
@@ -30,9 +28,8 @@ public sealed class RestartCoordinator(
         if (!policy.CanRetry(attempt))
         {
             logger.LogError(
-                "Канал {ChannelId}: исчерпан лимit попыток перезапуска ({Attempt}). Останавливаю.",
+                "Канал {ChannelId}: исчерпан лимит перезапусков ({Attempt}). Останавливаю.",
                 channelId, attempt);
-
             supervisor.Stop(channelId);
             _ = MarkFailedAsync(channelId);
             _restarting.TryRemove(channelId, out _);
@@ -41,35 +38,32 @@ public sealed class RestartCoordinator(
 
         var delay = policy.DelayFor(attempt);
         logger.LogWarning(
-            "Канал {ChannelId} завис. Перезапуск через {Delay:g} (попытка {Next}).",
+            "Канал {ChannelId} требует перезапуска через {Delay:g} (попытка {Next}).",
             channelId, delay, attempt + 1);
 
-        // планируем перезапуск в фоне
         _ = ScheduleRestartAsync(channelId, delay);
     }
 
     /// <summary>Сбросить счётчик, когда канал снова здоров.</summary>
-    public void OnHealthy(Guid channelId)
-    {
-        _attempts.TryRemove(channelId, out _);
-    }
+    public void OnHealthy(Guid channelId) => _attempts.TryRemove(channelId, out _);
 
     private async Task ScheduleRestartAsync(Guid channelId, TimeSpan delay)
     {
         try
         {
-            // 1) гасим зависший процесс
             supervisor.Stop(channelId);
-
-            // 2) ждём backoff
             await Task.Delay(delay);
 
-            // 3) грузим канал из БД и перезапускаем
             Channel? channel;
+            IStreamOrchestrator orchestrator;
+
             await using (var scope = services.CreateAsyncScope())
             {
                 var repo = scope.ServiceProvider.GetRequiredService<IReadRepository<Channel>>();
                 channel = await repo.FirstOrDefaultAsync(new ChannelByIdSpec(channelId));
+
+                // оркестратор достаём ЗДЕСЬ, а не в конструкторе — это разрывает круг
+                orchestrator = scope.ServiceProvider.GetRequiredService<IStreamOrchestrator>();
             }
 
             if (channel is null)
@@ -89,7 +83,6 @@ public sealed class RestartCoordinator(
         }
         finally
         {
-            // снимаем флаг — можно ловить следующий Stalled
             _restarting.TryRemove(channelId, out _);
         }
     }
@@ -100,6 +93,7 @@ public sealed class RestartCoordinator(
         {
             await using var scope = services.CreateAsyncScope();
             var repo = scope.ServiceProvider.GetRequiredService<IRepository<Channel>>();
+            
             var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             var channel = await repo.FirstOrDefaultAsync(new ChannelByIdSpec(channelId));

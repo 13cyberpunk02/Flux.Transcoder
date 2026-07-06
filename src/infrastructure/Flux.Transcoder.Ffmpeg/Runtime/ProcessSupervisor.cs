@@ -29,14 +29,19 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
     {
         if (_processes.TryGetValue(channelId, out var proc))
         {
+            proc.IntentionalStop = true;
             logger.LogInformation(
                 "Stopping channel {ChannelId} (pid {Pid})", channelId, proc.ProcessId);
-            proc.Cts.Cancel();   // -> TerminateGracefully в оркестраторе
+            proc.Cts.Cancel();
         }
     }
 
     public RunningProcess? Get(Guid channelId) =>
         _processes.GetValueOrDefault(channelId);
+    
+    /// <summary>Проверить, был ли стоп намеренным (для обработчика Exited).</summary>
+    public bool WasIntentionalStop(Guid channelId) =>
+        _processes.TryGetValue(channelId, out var proc) && proc.IntentionalStop;
 
     public IReadOnlyCollection<RunningProcess> All() => _processes.Values.ToList();
 }

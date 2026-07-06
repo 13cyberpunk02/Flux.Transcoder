@@ -28,6 +28,10 @@ public sealed class ProcessReaperService(
                     supervisor.Unregister(proc.ChannelId);
                     continue;
                 }
+                
+                var age = DateTimeOffset.UtcNow - proc.StartedAt;
+                if (age < TimeSpan.FromSeconds(20))
+                    continue;
 
                 if (health.Check(proc.ChannelId) == HealthState.Stalled)
                 {
