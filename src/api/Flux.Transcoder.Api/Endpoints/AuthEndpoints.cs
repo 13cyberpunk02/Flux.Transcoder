@@ -1,25 +1,17 @@
-using Flux.Transcoder.Application.Abstractions;
+using Flux.Transcoder.Application.Users.Commands.Login;
 using Microsoft.AspNetCore.Authorization;
+using Wolverine;
 using Wolverine.Http;
 
 namespace Flux.Transcoder.Api.Endpoints;
-
-public sealed record LoginRequest(string Username, string Password);
-public sealed record LoginResponse(string Token);
 
 public static class AuthEndpoints
 {
     [WolverinePost("/api/auth/login")]
     [AllowAnonymous]
-    public static IResult Login(LoginRequest request, ITokenGenerator tokens)
+    public static async Task<IResult> Login(LoginCommand command, IMessageBus bus)
     {
-        // ДЕМО-проверка. В реальности — пользовательское хранилище/хеши.
-        if (request.Username != "admin" || request.Password != "admin")
-            return Results.Unauthorized();
-
-        // токен здесь не привязан к каналу — генерим «сессионный»;
-        // если ITokenGenerator завязан на channelId, заведи перегрузку
-        var token = tokens.Generate(Guid.Empty, TimeSpan.FromHours(8));
-        return Results.Ok(new LoginResponse(token));
+        var result = await bus.InvokeAsync<LoginResult>(command);
+        return Results.Ok(result);
     }
 }

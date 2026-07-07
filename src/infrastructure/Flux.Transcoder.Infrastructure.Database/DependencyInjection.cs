@@ -26,6 +26,12 @@ public static class DependencyInjection
         // JWT
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
+        
+        //Password hasher 
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        
+        //Токен генератор для авторизации пользователя
+        services.AddSingleton<IAuthTokenService, AuthTokenService>();
 
         return services;
     }

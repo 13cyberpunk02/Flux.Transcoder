@@ -26,6 +26,10 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
         {
             await WriteProblem(context, StatusCodes.Status409Conflict, "Invalid state transition", ex.Message);
         }
+        catch (UnauthorizedException ex)
+        {
+            await WriteProblem(context, StatusCodes.Status401Unauthorized, "Unauthorized", ex.Message);
+        }
         catch (DomainException ex)       // прочие доменные нарушения
         {
             await WriteProblem(context, StatusCodes.Status400BadRequest, "Domain rule violated", ex.Message);

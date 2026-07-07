@@ -119,6 +119,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+await DbSeeder.SeedAdminAsync(app.Services);
 app.MapHub<ChannelsHub>("/hubs/channels");
 
 // pipeline
