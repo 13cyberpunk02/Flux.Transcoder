@@ -20,6 +20,7 @@ public static class GetChannelByIdHandler
                 channel.Id,
                 channel.Source.Value,
                 channel.Profile.Id,
-                channel.Status.ToString());
+                channel.Status.ToString(),
+                (int)channel.Retention.ArchiveRetention.TotalMinutes);
     }
 }

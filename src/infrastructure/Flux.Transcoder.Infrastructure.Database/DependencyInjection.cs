@@ -25,7 +25,6 @@ public static class DependencyInjection
 
         // JWT
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
-        services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
         
         //Password hasher 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();

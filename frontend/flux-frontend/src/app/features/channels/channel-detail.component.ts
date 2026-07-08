@@ -3,11 +3,12 @@ import { ChannelsStore } from './channels.store';
 import { PlayerComponent } from '../player/player.component';
 import {DecimalPipe} from '@angular/common';
 import {ChannelView} from '../../core/api/models';
+import {RetentionSettingsComponent} from './retention-settings.component';
 
 @Component({
   selector: 'app-channel-detail',
   standalone: true,
-  imports: [PlayerComponent, DecimalPipe],
+  imports: [PlayerComponent, DecimalPipe, RetentionSettingsComponent],
   template: `
     @if (channel(); as ch) {
       <div class="mb-6">
@@ -60,6 +61,12 @@ import {ChannelView} from '../../core/api/models';
           </div>
         </div>
       }
+
+      <div class="mb-6">
+        <app-retention-settings
+          [channelId]="ch.channelId"
+          [currentMinutes]="ch.retentionMinutes" />
+      </div>
 
       @if (ch.status === 'Running') {
         <div class="rounded-xl overflow-hidden border border-slate-800 bg-black">

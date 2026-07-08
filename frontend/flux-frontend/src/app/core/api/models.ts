@@ -3,6 +3,7 @@
   sourceUrl: string;
   profileId: string;
   status: 'Idle' | 'Starting' | 'Running' | 'Degraded' | 'Failed' | 'Stopped';
+  retentionMinutes: number;
 }
 
 export interface ChannelHealthReport {

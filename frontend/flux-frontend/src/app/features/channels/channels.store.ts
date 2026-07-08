@@ -66,4 +66,8 @@ export class ChannelsStore {
     this._channels.update(list =>
       list.map(c => c.channelId === id ? { ...c, status } : c));
   }
+
+  updateRetention(id: string, minutes: number): void {
+    this.api.updateRetention(id, minutes).subscribe(() => this.loadChannel(id));
+  }
 }

@@ -6,4 +6,5 @@ public sealed record ChannelView(
     Guid ChannelId,
     string SourceUrl,
     Guid ProfileId,
-    string Status);
+    string Status,
+    int RetentionMinutes);

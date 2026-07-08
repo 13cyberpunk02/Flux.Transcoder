@@ -15,6 +15,10 @@ public class GetAllChannelsHandler
         var list = await channels.ListAsync(new AllChannelsSpec(), cancellationToken);
 
         return list.Select(c => new ChannelView(
-            c.Id, c.Source.Value, c.Profile.Id, c.Status.ToString())).ToList();
+            c.Id,
+            c.Source.Value,
+            c.Profile.Id,
+            c.Status.ToString(),
+            (int)c.Retention.ArchiveRetention.TotalMinutes)).ToList();   // <- добавили
     }
 }

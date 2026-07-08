@@ -12,4 +12,7 @@ export class ChannelsApi {
   start(id: string) { return this.http.post(`/api/channels/${id}/start`, {}); }
   stop(id: string) { return this.http.post(`/api/channels/${id}/stop`, {}); }
   restart(id: string) { return this.http.post(`/api/channels/${id}/restart`, {}); }
+  updateRetention(id: string, retentionMinutes: number) {
+    return this.http.put(`/api/channels/${id}/retention`, { retentionMinutes });
+  }
 }

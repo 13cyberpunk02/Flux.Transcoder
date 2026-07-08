@@ -2,6 +2,7 @@ using Flux.Transcoder.Application.Channels.Commands.CreateChannel;
 using Flux.Transcoder.Application.Channels.Commands.RestartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StopChannel;
+using Flux.Transcoder.Application.Channels.Commands.UpdateRetention;
 using Flux.Transcoder.Application.Channels.Queries.GetAllChannels;
 using Flux.Transcoder.Application.Channels.Queries.GetChannelById;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +12,7 @@ using Wolverine.Http;
 namespace Flux.Transcoder.Api.Endpoints;
 
 public sealed record CreateChannelRequest(string SourceUrl, Guid ProfileId);
+public sealed record UpdateRetentionRequest(int RetentionMinutes);
 
 [Authorize]
 public static class ChannelEndpoints
@@ -57,5 +59,13 @@ public static class ChannelEndpoints
     {
         await bus.InvokeAsync(new RestartChannelRequest(id));
         return Results.Accepted($"/api/channels/{id}");
+    }
+    
+    [WolverinePut("/api/channels/{id:guid}/retention")]
+    public static async Task<IResult> UpdateRetention(
+        Guid id, UpdateRetentionRequest request, IMessageBus bus)
+    {
+        await bus.InvokeAsync(new UpdateRetentionCommand(id, request.RetentionMinutes));
+        return Results.NoContent();
     }
 }
