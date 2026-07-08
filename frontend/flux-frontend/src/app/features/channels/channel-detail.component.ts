@@ -1,14 +1,16 @@
-﻿import { Component, inject, input, computed, OnInit } from '@angular/core';
+﻿import {Component, inject, input, computed, OnInit, signal} from '@angular/core';
 import { ChannelsStore } from './channels.store';
 import { PlayerComponent } from '../player/player.component';
 import {DecimalPipe} from '@angular/common';
 import {ChannelView} from '../../core/api/models';
 import {RetentionSettingsComponent} from './retention-settings.component';
+import {FormsModule} from '@angular/forms';
+import {RouterLink} from '@angular/router';
 
 @Component({
   selector: 'app-channel-detail',
   standalone: true,
-  imports: [PlayerComponent, DecimalPipe, RetentionSettingsComponent],
+  imports: [PlayerComponent, DecimalPipe, RetentionSettingsComponent, FormsModule, RouterLink],
   template: `
     @if (channel(); as ch) {
       <div class="mb-6">
@@ -60,6 +62,25 @@ import {RetentionSettingsComponent} from './retention-settings.component';
             <p class="text-lg font-semibold">{{ h.uptimeSeconds | number:'1.0-0' }}<span class="text-sm text-slate-400">s</span></p>
           </div>
         </div>
+        <div class="flex items-center gap-3 mb-4">
+          <button (click)="switchToLive()"
+                  [class]="mode() === 'live'
+        ? 'px-4 py-2 rounded-md bg-indigo-600 font-medium'
+        : 'px-4 py-2 rounded-md bg-slate-800 hover:bg-slate-700'">
+            Прямой эфир
+          </button>
+
+          <div class="flex items-center gap-2">
+            <input type="datetime-local" [(ngModel)]="archiveFrom"
+                   class="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 outline-none" />
+            <button (click)="switchToArchive()" [disabled]="!archiveFrom"
+                    [class]="mode() === 'archive'
+          ? 'px-4 py-2 rounded-md bg-indigo-600 font-medium'
+          : 'px-4 py-2 rounded-md bg-slate-800 hover:bg-slate-700 disabled:opacity-40'">
+              Смотреть с этого момента
+            </button>
+          </div>
+        </div>
       }
 
       <div class="mb-6">
@@ -68,13 +89,11 @@ import {RetentionSettingsComponent} from './retention-settings.component';
           [currentMinutes]="ch.retentionMinutes" />
       </div>
 
-      @if (ch.status === 'Running') {
-        <div class="rounded-xl overflow-hidden border border-slate-800 bg-black">
-          <app-player [channelId]="ch.channelId" />
-        </div>
+      @if (ch.status === 'Running' || mode() === 'archive') {
+        <app-player [src]="playerSrc()" />
       } @else {
         <div class="rounded-xl border border-dashed border-slate-700 p-10 text-center text-slate-500">
-          Видео появится, когда канал перейдёт в Running
+          Канал не в эфире
         </div>
       }
     } @else {
@@ -85,6 +104,20 @@ import {RetentionSettingsComponent} from './retention-settings.component';
 export class ChannelDetailComponent implements OnInit {
   readonly id = input.required<string>();
   readonly store = inject(ChannelsStore);
+  readonly mode = signal<'live' | 'archive'>('live');
+  archiveFrom = '';
+  private readonly hlsBase = 'http://localhost:3088';
+  private readonly apiBase = 'http://localhost:5000';
+
+  readonly playerSrc = computed(() => {
+    const id = this.id();
+    if (this.mode() === 'live') {
+      return `${this.hlsBase}/${id}/live/live.m3u8`;
+    } else {
+      const from = new Date(this.archiveFrom).toISOString();
+      return `${this.apiBase}/api/channels/${id}/archive?from=${encodeURIComponent(from)}`;
+    }
+  });
 
   readonly channel = computed(() =>
     this.store.channels().find(c => c.channelId === this.id()));
@@ -101,5 +134,14 @@ export class ChannelDetailComponent implements OnInit {
       case 'Stopped':  return 'bg-slate-500/15 text-slate-400';
       default:         return 'bg-slate-700/40 text-slate-300'; // Idle
     }
+  }
+
+  switchToLive(): void {
+    this.mode.set('live');
+  }
+
+  switchToArchive(): void {
+    if (!this.archiveFrom) return;
+    this.mode.set('archive');
   }
 }
