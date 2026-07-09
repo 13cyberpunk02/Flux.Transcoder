@@ -114,7 +114,7 @@ export class ChannelDetailComponent implements OnInit {
     if (this.mode() === 'live') {
       return `${this.hlsBase}/${id}/live/live.m3u8`;
     } else {
-      const from = new Date(this.archiveFrom).toISOString();
+      const from = this.toLocalIso(this.archiveFrom);
       return `${this.apiBase}/api/channels/${id}/archive?from=${encodeURIComponent(from)}`;
     }
   });
@@ -134,6 +134,17 @@ export class ChannelDetailComponent implements OnInit {
       case 'Stopped':  return 'bg-slate-500/15 text-slate-400';
       default:         return 'bg-slate-700/40 text-slate-300'; // Idle
     }
+  }
+
+  private toLocalIso(dateTimeLocal: string): string {
+    const d = new Date(dateTimeLocal);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const offsetMin = -d.getTimezoneOffset();
+    const sign = offsetMin >= 0 ? '+' : '-';
+    const oh = pad(Math.floor(Math.abs(offsetMin) / 60));
+    const om = pad(Math.abs(offsetMin) % 60);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${oh}:${om}`;
   }
 
   switchToLive(): void {

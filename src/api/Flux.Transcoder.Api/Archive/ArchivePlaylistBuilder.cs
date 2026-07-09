@@ -15,13 +15,23 @@ public sealed class ArchivePlaylistBuilder(IConfiguration config)
     public string? Build(Guid channelId, DateTimeOffset from)
     {
         var channelArchive = Path.Combine(_archiveRoot, channelId.ToString(), "archive");
+        Console.WriteLine($"[ARCHIVE] root={_archiveRoot}");
+        Console.WriteLine($"[ARCHIVE] channelArchive={channelArchive}");
+        Console.WriteLine($"[ARCHIVE] exists={Directory.Exists(channelArchive)}");        
+        
         if (!Directory.Exists(channelArchive))
             return null;
+        
+        var all = EnumerateSegments(channelArchive).ToList();
+        Console.WriteLine($"[ARCHIVE] найдено файлов={all.Count}, from={from:O}");
+        foreach (var s in all.Take(3))
+            Console.WriteLine($"[ARCHIVE]   сегмент: time={s.Time:O} url={s.HttpUrl}");
 
         var segments = EnumerateSegments(channelArchive)
-            .Where(s => s.Time >= from)          // только нижняя граница
+            .Where(s => s.Time >= from)     
             .OrderBy(s => s.Time)
             .ToList();
+        Console.WriteLine($"[ARCHIVE] после фильтра >= from: {segments.Count}");
 
         if (segments.Count == 0)
             return null;
@@ -80,7 +90,6 @@ public sealed class ArchivePlaylistBuilder(IConfiguration config)
                 DateTimeStyles.None,
                 out var dt))
         {
-            // сегменты пишутся по локальному времени машины (strftime = localtime)
             return new DateTimeOffset(dt, TimeZoneInfo.Local.GetUtcOffset(dt));
         }
         return null;

@@ -1,4 +1,5 @@
-﻿using Flux.Transcoder.Application.Abstractions;
+﻿using Flux.Transcoder.Api.Metrics;
+using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Application.Specifications;
 using Flux.Transcoder.Contracts.Events;
 using Flux.Transcoder.Domain.Channels;
@@ -13,9 +14,14 @@ public class ChannelHealthHandler
         IHubContext<ChannelsHub> hub,
         IRepository<Channel> channels,
         IUnitOfWork unitOfWork,
+        MetricsWriter metrics, 
         CancellationToken cancellationToken)
     {
         await hub.Clients.All.SendAsync("channelHealth", report, cancellationToken);
+        
+        await metrics.WriteAsync(
+            report.ChannelId, report.OutputBitrateKbps, report.DroppedFrames,
+            report.UptimeSeconds, report.Status, cancellationToken);
         
         var channel = await channels.FirstOrDefaultAsync(
             new ChannelByIdSpec(report.ChannelId), cancellationToken);

@@ -21,7 +21,7 @@ public class ArchiveEndpoints
     //         Results.Text(playlist, "application/vnd.apple.mpegurl");
     // }
     
-    [WolverineGet("/api/channels/{id:guid}/archive.m3u8")]
+    [WolverineGet("/api/channels/{id:guid}/archive")]
     [AllowAnonymous]
     [EnableCors("player")]           // <- политика для плеера
     public static IResult GetArchivePlayer(Guid id, DateTimeOffset from, ArchivePlaylistBuilder builder)
