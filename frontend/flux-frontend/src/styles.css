@@ -1,5 +1,82 @@
-/* You can add global styles to this file, and also import other style files */
 @import "tailwindcss";
 
+:root {
+  --accent: 16 185 129;
+  --accent-soft: 45 212 191;
+}
+
+html.dark {
+  --bg: 8 10 18;
+  --text: 241 245 249;
+  --text-muted: 148 163 184;
+  --glass-bg: 255 255 255;
+  --glass-opacity: 0.05;
+  --glass-border: 255 255 255;
+  --glass-border-opacity: 0.10;
+  --orb-1: 16 185 129;
+  --orb-2: 45 212 191;
+  --orb-3: 56 189 248;
+  --orb-opacity: 0.18;
+}
+
+html.light {
+  --bg: 241 245 249;
+  --text: 15 23 42;
+  --text-muted: 71 85 105;
+  --glass-bg: 255 255 255;
+  --glass-opacity: 0.55;
+  --glass-border: 255 255 255;
+  --glass-border-opacity: 0.60;
+  --orb-1: 16 185 129;
+  --orb-2: 45 212 191;
+  --orb-3: 56 189 248;
+  --orb-opacity: 0.15;
+}
+
 html, body { height: 100%; }
-body { @apply bg-slate-950 text-slate-100; }
+
+body {
+  color: rgb(var(--text));
+  background-color: rgb(var(--bg));
+  position: relative;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40rem 40rem at 15% 20%, rgb(var(--orb-1) / var(--orb-opacity)), transparent 60%),
+    radial-gradient(35rem 35rem at 85% 15%, rgb(var(--orb-2) / var(--orb-opacity)), transparent 60%),
+    radial-gradient(45rem 45rem at 70% 85%, rgb(var(--orb-3) / var(--orb-opacity)), transparent 60%);
+  transition: opacity 0.3s ease;
+}
+
+.glass {
+  background: rgb(var(--glass-bg) / var(--glass-opacity));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(var(--glass-border) / var(--glass-border-opacity));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.20);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  html.dark .glass { background: rgb(13 13 20 / 0.90); }
+  html.light .glass { background: rgb(255 255 255 / 0.95); }
+}
+
+button:not(:disabled),
+a,
+[role="button"],
+select,
+summary {
+  cursor: pointer;
+}
+button:disabled { cursor: not-allowed; }
+
+.accent-bg { background: rgb(var(--accent)); }
+.accent-text { color: rgb(var(--accent)); }

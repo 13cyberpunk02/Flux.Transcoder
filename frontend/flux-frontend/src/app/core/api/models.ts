@@ -6,6 +6,14 @@
   retentionMinutes: number;
 }
 
+export interface MetricPoint {
+  time: string;
+  avgBitrate: number;
+  maxBitrate: number;
+  droppedFrames: number;
+  uptimeSeconds: number;
+}
+
 export interface ChannelHealthReport {
   channelId: string;
   status: string;

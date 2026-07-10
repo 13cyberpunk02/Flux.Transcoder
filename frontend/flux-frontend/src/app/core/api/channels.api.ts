@@ -1,6 +1,8 @@
 ﻿import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ChannelView, CreateChannelRequest } from './models';
+import {ChannelView, CreateChannelRequest, MetricPoint} from './models';
+
+
 
 @Injectable({ providedIn: 'root' })
 export class ChannelsApi {
@@ -14,5 +16,8 @@ export class ChannelsApi {
   restart(id: string) { return this.http.post(`/api/channels/${id}/restart`, {}); }
   updateRetention(id: string, retentionMinutes: number) {
     return this.http.put(`/api/channels/${id}/retention`, { retentionMinutes });
+  }
+  getMetrics(id: string, minutes: number = 60) {
+    return this.http.get<MetricPoint[]>(`/api/channels/${id}/metrics?minutes=${minutes}`);
   }
 }
