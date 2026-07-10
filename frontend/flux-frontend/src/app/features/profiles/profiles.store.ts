@@ -1,9 +1,12 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { ProfilesApi, ProfileView, CreateProfileRequest } from '../../core/api/profiles.api';
+import {ToastService} from '../../core/toast/toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class ProfilesStore {
   private readonly api = inject(ProfilesApi);
+  private readonly toast = inject(ToastService);
+
   private readonly _profiles = signal<ProfileView[]>([]);
   private readonly _loading = signal(false);
 
@@ -21,8 +24,11 @@ export class ProfilesStore {
   create(body: CreateProfileRequest): Promise<void> {
     return new Promise((resolve, reject) => {
       this.api.create(body).subscribe({
-        next: () => { this.loadAll(); resolve(); },
-        error: err => reject(err),
+        next: () => { this.loadAll(); resolve(); this.toast.success('Профиль создан'); },
+        error: err => {
+          reject(err);
+          this.toast.error('Не удалось создать профиль');
+        },
       });
     });
   }

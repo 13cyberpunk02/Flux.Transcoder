@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --accent: 16 185 129;
+  --accent: 20 184 166;
   --accent-soft: 45 212 191;
 }
 
@@ -17,6 +17,10 @@ html.dark {
   --orb-2: 45 212 191;
   --orb-3: 56 189 248;
   --orb-opacity: 0.18;
+  --surface: 255 255 255;
+  --surface-opacity: 0.05;
+  --border: 255 255 255;
+  --border-opacity: 0.10;
 }
 
 html.light {
@@ -27,10 +31,14 @@ html.light {
   --glass-opacity: 0.55;
   --glass-border: 255 255 255;
   --glass-border-opacity: 0.60;
-  --orb-1: 16 185 129;
-  --orb-2: 45 212 191;
+  --orb-1: 20 184 166;
+  --orb-2: 6 182 212;
   --orb-3: 56 189 248;
   --orb-opacity: 0.15;
+  --surface: 15 23 42;
+  --surface-opacity: 0.04;
+  --border: 15 23 42;
+  --border-opacity: 0.15;
 }
 
 html, body { height: 100%; }
@@ -80,3 +88,14 @@ button:disabled { cursor: not-allowed; }
 
 .accent-bg { background: rgb(var(--accent)); }
 .accent-text { color: rgb(var(--accent)); }
+
+.field {
+  background: rgb(var(--surface) / var(--surface-opacity));
+  border: 1px solid rgb(var(--border) / var(--border-opacity));
+}
+.field:focus, .field:focus-within {
+  border-color: rgb(var(--accent) / 0.5);
+}
+.divider {
+  border-color: rgb(var(--border) / var(--border-opacity));
+}

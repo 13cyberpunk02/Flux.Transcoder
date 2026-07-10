@@ -1,9 +1,10 @@
-﻿import { Component, ElementRef, input, viewChild, effect, OnDestroy } from '@angular/core';
+﻿import { Component, ElementRef, input, viewChild, effect, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import Hls from 'hls.js';
 
 @Component({
   selector: 'app-player',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<video #video controls autoplay style="width:100%"></video>`
 })
 export class PlayerComponent implements OnDestroy {

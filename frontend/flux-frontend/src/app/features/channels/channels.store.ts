@@ -1,10 +1,12 @@
 ﻿import { Injectable, inject, signal, computed } from '@angular/core';
 import { ChannelsApi } from '../../core/api/channels.api';
 import {ChannelView, ChannelHealthReport, CreateChannelRequest} from '../../core/api/models';
+import {ToastService} from '../../core/toast/toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChannelsStore {
   private readonly api = inject(ChannelsApi);
+  private readonly toast = inject(ToastService);
 
   private readonly _channels = signal<ChannelView[]>([]);
   private readonly _health = signal<Record<string, ChannelHealthReport>>({});
@@ -42,22 +44,58 @@ export class ChannelsStore {
 
 
   create(body: CreateChannelRequest): void {
-    this.api.create(body).subscribe(() => this.loadAll());
+    this.api.create(body).subscribe({
+      next: () => {
+        this.loadAll();
+        this.toast.success('Канал создан', 'Готово');
+      },
+      error: () => this.toast.error('Не удалось создать канал'),
+    });
   }
 
   start(id: string): void {
-    this.api.start(id).subscribe(() => this.patchStatus(id, 'Starting'));
+    this.api.start(id).subscribe({
+      next: () => { this.patchStatus(id, 'Starting'); this.toast.info('Канал запускается'); },
+      error: () => this.toast.error('Не удалось запустить канал'),
+    });
   }
 
   stop(id: string): void {
-    this.api.stop(id).subscribe(() => this.patchStatus(id, 'Stopped'));
+    this.api.stop(id).subscribe({
+      next: () => { this.patchStatus(id, 'Stopped'); this.toast.info('Канал остановлен'); },
+      error: () => this.toast.error('Не удалось остановить канал'),
+    });
   }
 
   restart(id: string): void {
-    this.api.restart(id).subscribe(() => this.patchStatus(id, 'Starting'));
+    this.api.restart(id).subscribe({
+      next: () => {
+        this.patchStatus(id, 'Starting');
+        this.toast.info('Канал перезапущен');
+      },
+      error: () => this.toast.error('Не удалось перезапустить канал'),
+    });
   }
 
-  // вызывается из SignalR — обновляет статус и health вживую
+  delete(id: string): void {
+    this.api.delete(id).subscribe({
+      next: () => {
+        this.toast.success('Канал удалён');
+      },
+      error: () => this.toast.error('Не удалось удалить канал'),
+    });
+  }
+
+  updateRetention(id: string, minutes: number): void {
+    this.api.updateRetention(id, minutes).subscribe({
+      next: () => {
+        this.loadChannel(id);
+        this.toast.info('Время хранения архива изменено успешно');
+      },
+      error: () => this.toast.error('Не удалось изменить время хранения для канала')
+    });
+  }
+
   applyHealth(report: ChannelHealthReport): void {
     this._health.update(h => ({ ...h, [report.channelId]: report }));
   }
@@ -65,9 +103,5 @@ export class ChannelsStore {
   patchStatus(id: string, status: ChannelView['status']): void {
     this._channels.update(list =>
       list.map(c => c.channelId === id ? { ...c, status } : c));
-  }
-
-  updateRetention(id: string, minutes: number): void {
-    this.api.updateRetention(id, minutes).subscribe(() => this.loadChannel(id));
   }
 }

@@ -1,161 +1,322 @@
-﻿import {Component, inject, input, computed, OnInit, signal} from '@angular/core';
+﻿import {
+  Component, inject, input, signal, computed, OnInit,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink, Router } from '@angular/router';
+import { DecimalPipe } from '@angular/common';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import {
+  faArrowLeft, faPlay, faStop, faRotate, faTrash,
+  faTowerBroadcast, faClockRotateLeft, faFloppyDisk,
+  faGaugeHigh, faFilm, faClock, faVideo,
+} from '@fortawesome/free-solid-svg-icons';
+
 import { ChannelsStore } from './channels.store';
 import { PlayerComponent } from '../player/player.component';
-import {DecimalPipe} from '@angular/common';
-import {ChannelView} from '../../core/api/models';
-import {RetentionSettingsComponent} from './retention-settings.component';
-import {FormsModule} from '@angular/forms';
-import {RouterLink} from '@angular/router';
-import {BitrateChartComponent} from './bitrate-chart.component';
+import { BitrateChartComponent } from './bitrate-chart.component';
+import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { ToastService } from '../../core/toast/toast.service';
+import { ConfirmService } from '../../core/confirm/confirm.service';
+import { ChannelsApi } from '../../core/api/channels.api';
 
 @Component({
   selector: 'app-channel-detail',
   standalone: true,
   imports: [
-    PlayerComponent,
-    DecimalPipe,
-    RetentionSettingsComponent,
-    BitrateChartComponent,
-    FormsModule,
-    RouterLink],
+    FormsModule, RouterLink, DecimalPipe, FontAwesomeModule,
+    PlayerComponent, BitrateChartComponent, StatusBadgeComponent, ButtonComponent,
+  ],
   template: `
     @if (channel(); as ch) {
-      <div class="mb-6">
-        <a routerLink="/channels"
-           class="text-sm text-slate-400 hover:text-slate-200 transition inline-flex items-center gap-1 mb-3">
-          ← к списку
-        </a>
+      <!-- НАЗАД -->
+      <a routerLink="/channels"
+         class="inline-flex items-center gap-2 text-sm text-[rgb(var(--text-muted))]
+                hover:text-[rgb(var(--text))] transition mb-4">
+        <fa-icon [icon]="faArrowLeft" class="text-xs" />
+        к списку каналов
+      </a>
 
-        <div class="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 class="text-2xl font-semibold mb-1">Канал</h1>
-            <p class="text-sm font-mono text-slate-500">{{ ch.channelId }}</p>
-            <p class="text-sm text-slate-400 mt-1 break-all">{{ ch.sourceUrl }}</p>
+      <!-- ШАПКА: имя + статус + управление + retention -->
+      <div class="glass rounded-2xl p-5 mb-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+          <div class="min-w-0">
+            <div class="flex items-center gap-3 mb-1.5">
+              <h1 class="text-xl font-semibold text-[rgb(var(--text))]">Канал</h1>
+              <ui-status-badge [status]="ch.status" />
+            </div>
+            <p class="text-xs font-mono text-[rgb(var(--text-muted))] truncate">{{ ch.channelId }}</p>
+            <p class="text-sm text-[rgb(var(--text-muted))] mt-1 flex items-center gap-1.5 truncate">
+              <fa-icon [icon]="faVideo" class="text-xs opacity-60" />
+              {{ ch.sourceUrl }}
+            </p>
           </div>
 
-          <div class="flex items-center gap-3">
-          <span class="text-sm px-3 py-1.5 rounded-full font-medium" [class]="badgeClass(ch.status)">
-            {{ ch.status }}
-          </span>
+          <!-- КНОПКИ УПРАВЛЕНИЯ -->
+          <div class="flex flex-wrap gap-2">
+            <ui-button label="Старт" [icon]="faPlay" variant="primary" size="sm"
+              [disabled]="ch.status !== 'Idle' && ch.status !== 'Stopped' && ch.status !== 'Failed'"
+              (clicked)="onStart(ch.channelId)" />
+            <ui-button label="Рестарт" [icon]="faRotate" variant="secondary" size="sm"
+              [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
+              (clicked)="onRestart(ch.channelId)" />
+            <ui-button label="Стоп" [icon]="faStop" variant="secondary" size="sm"
+              [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
+              (clicked)="onStop(ch.channelId)" />
+            <ui-button label="Удалить" [icon]="faTrash" variant="danger" size="sm"
+              (clicked)="onDelete(ch.channelId)" />
+          </div>
+        </div>
+
+        <!-- RETENTION — вынесен наверх, рядом с управлением -->
+        <div class="flex items-end gap-2 flex-wrap pt-4 border-t border-white/10">
+          <div>
+            <label class="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))] mb-1.5">
+              <fa-icon [icon]="faClockRotateLeft" class="text-xs" />
+              Хранение архива
+            </label>
             <div class="flex gap-2">
-              <button (click)="store.start(ch.channelId)" [disabled]="ch.status !== 'Idle'"
-                      class="px-3 py-1.5 rounded-lg text-sm bg-emerald-500/20 text-emerald-300 border border-emerald-500/30
-                     hover:bg-emerald-500/30 disabled:opacity-40 transition">Старт</button>
-              <button (click)="store.restart(ch.channelId)"
-                      [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
-                      class="px-3 py-1.5 rounded-lg text-sm bg-amber-500/20 text-amber-300 border border-amber-500/30
-                     hover:bg-amber-500/30 disabled:opacity-40 transition">Рестарт</button>
-              <button (click)="store.stop(ch.channelId)"
-                      [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
-                      class="px-3 py-1.5 rounded-lg text-sm bg-rose-500/20 text-rose-300 border border-rose-500/30
-                     hover:bg-rose-500/30 disabled:opacity-40 transition">Стоп</button>
+              <input type="number" min="1" [(ngModel)]="retentionValue"
+                class="w-20 px-3 py-2 rounded-xl bg-white/5 border border-white/10 outline-none
+                       text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)] transition text-sm" />
+              <select [(ngModel)]="retentionUnit"
+                class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 outline-none
+                       text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)] transition text-sm">
+                <option value="minutes">минут</option>
+                <option value="hours">часов</option>
+                <option value="days">дней</option>
+              </select>
             </div>
           </div>
+          <ui-button label="Сохранить" [icon]="faFloppyDisk" variant="secondary" size="sm"
+            [loading]="savingRetention()" (clicked)="saveRetention(ch.channelId)" />
+          <span class="text-xs text-[rgb(var(--text-muted))] ml-1 mb-2.5">
+            сейчас: {{ currentRetentionLabel() }}
+          </span>
         </div>
       </div>
 
+      <!-- МЕТРИКИ -->
       @if (report(); as h) {
-        <div class="grid grid-cols-3 gap-3 mb-6">
-          <div class="glass rounded-xl px-4 py-3">
-            <p class="text-xs text-slate-400 mb-0.5">Битрейт</p>
-            <p class="text-lg font-semibold">{{ h.outputBitrateKbps | number:'1.0-0' }}
-              <span class="text-xs text-slate-500">kbps</span></p>
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg
+                        bg-[rgb(var(--accent)/0.15)] text-[rgb(var(--accent))]">
+              <fa-icon [icon]="faGaugeHigh" />
+            </div>
+            <div>
+              <p class="text-xs text-[rgb(var(--text-muted))]">Битрейт</p>
+              <p class="text-lg font-semibold text-[rgb(var(--text))]">
+                {{ h.outputBitrateKbps | number:'1.0-0' }}
+                <span class="text-xs text-[rgb(var(--text-muted))]">kbps</span>
+              </p>
+            </div>
           </div>
-          <div class="glass rounded-xl px-4 py-3">
-            <p class="text-xs text-slate-400 mb-0.5">Дропы</p>
-            <p class="text-lg font-semibold">{{ h.droppedFrames }}</p>
+
+          <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg
+                        bg-amber-500/15 text-amber-400">
+              <fa-icon [icon]="faFilm" />
+            </div>
+            <div>
+              <p class="text-xs text-[rgb(var(--text-muted))]">Дропы</p>
+              <p class="text-lg font-semibold text-[rgb(var(--text))]">{{ h.droppedFrames }}</p>
+            </div>
           </div>
-          <div class="glass rounded-xl px-4 py-3">
-            <p class="text-xs text-slate-400 mb-0.5">Аптайм</p>
-            <p class="text-lg font-semibold">{{ h.uptimeSeconds | number:'1.0-0' }}<span class="text-xs text-slate-500">s</span></p>
+
+          <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg
+                        bg-emerald-500/15 text-emerald-400">
+              <fa-icon [icon]="faClock" />
+            </div>
+            <div>
+              <p class="text-xs text-[rgb(var(--text-muted))]">Аптайм</p>
+              <p class="text-lg font-semibold text-[rgb(var(--text))]">
+                {{ h.uptimeSeconds | number:'1.0-0' }}<span class="text-xs text-[rgb(var(--text-muted))]">s</span>
+              </p>
+            </div>
           </div>
         </div>
       }
 
+      <!-- ГЛАВНАЯ ЗОНА: плеер + панель просмотра -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <!-- Плеер (2/3 ширины) -->
         <div class="lg:col-span-2">
           <div class="glass rounded-2xl overflow-hidden">
             @if (ch.status === 'Running' || mode() === 'archive') {
               <app-player [src]="playerSrc()" />
             } @else {
-              <div class="aspect-video flex items-center justify-center text-slate-500">
-                Канал не в эфире
+              <div class="aspect-video flex flex-col items-center justify-center gap-2
+                          text-[rgb(var(--text-muted))]">
+                <fa-icon [icon]="faTowerBroadcast" class="text-3xl opacity-40" />
+                <span class="text-sm">Канал не в эфире</span>
               </div>
             }
           </div>
         </div>
 
+        <!-- ПАНЕЛЬ ПРОСМОТРА -->
         <div class="glass rounded-2xl p-5 flex flex-col gap-4">
-          <h3 class="font-medium">Просмотр</h3>
+          <h3 class="font-medium text-[rgb(var(--text))] flex items-center gap-2">
+            <fa-icon [icon]="faTowerBroadcast" class="text-[rgb(var(--accent))] text-sm" />
+            Просмотр
+          </h3>
 
-          <button (click)="switchToLive()"
-                  [class]="mode() === 'live'
-            ? 'w-full px-4 py-2.5 rounded-xl bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 font-medium transition'
-            : 'w-full px-4 py-2.5 rounded-xl bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition'">
-            ● Прямой эфир
-          </button>
+          <ui-button label="Прямой эфир" [icon]="faTowerBroadcast"
+            [variant]="mode() === 'live' ? 'primary' : 'secondary'"
+            (clicked)="switchToLive()" />
 
-          <div class="border-t border-white/10 pt-4">
-            <p class="text-xs text-slate-400 mb-2">Смотреть архив с момента:</p>
+          <div class="border-t border-white/10 pt-4 flex flex-col gap-2">
+            <label class="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
+              <fa-icon [icon]="faClockRotateLeft" class="text-xs" />
+              Смотреть архив с момента
+            </label>
             <input type="datetime-local" [(ngModel)]="archiveFrom"
-                   class="w-full mb-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none
-                   focus:border-indigo-400/40 transition text-sm" />
-            <button (click)="switchToArchive()" [disabled]="!archiveFrom"
-                    [class]="mode() === 'archive'
-              ? 'w-full px-4 py-2 rounded-xl bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 font-medium transition'
-              : 'w-full px-4 py-2 rounded-xl bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 disabled:opacity-40 transition'">
-              Смотреть архив
-            </button>
+              class="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 outline-none
+                     text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)] transition text-sm" />
+            <ui-button label="Смотреть архив" [icon]="faClockRotateLeft"
+              [variant]="mode() === 'archive' ? 'primary' : 'secondary'"
+              [disabled]="!archiveFrom" (clicked)="switchToArchive()" />
           </div>
         </div>
       </div>
 
-      <div class="mb-4">
-        <app-bitrate-chart [channelId]="ch.channelId" />
-      </div>
-
-      <app-retention-settings
-        [channelId]="ch.channelId"
-        [currentMinutes]="ch.retentionMinutes" />
+      <!-- ГРАФИК -->
+      <app-bitrate-chart [channelId]="ch.channelId" />
 
     } @else {
-      <div class="glass rounded-2xl p-10 text-center text-slate-400">Загрузка…</div>
+      <div class="glass rounded-2xl p-10 text-center text-[rgb(var(--text-muted))]">
+        Загрузка…
+      </div>
     }
   `,
 })
 export class ChannelDetailComponent implements OnInit {
   readonly id = input.required<string>();
+
   readonly store = inject(ChannelsStore);
+  private readonly api = inject(ChannelsApi);
+  private readonly toast = inject(ToastService);
+  private readonly confirmService = inject(ConfirmService);
+  private readonly router = inject(Router);
+
+  // иконки
+  readonly faArrowLeft = faArrowLeft;
+  readonly faPlay = faPlay;
+  readonly faStop = faStop;
+  readonly faRotate = faRotate;
+  readonly faTrash = faTrash;
+  readonly faTowerBroadcast = faTowerBroadcast;
+  readonly faClockRotateLeft = faClockRotateLeft;
+  readonly faFloppyDisk = faFloppyDisk;
+  readonly faGaugeHigh = faGaugeHigh;
+  readonly faFilm = faFilm;
+  readonly faClock = faClock;
+  readonly faVideo = faVideo;
+
+  // просмотр
   readonly mode = signal<'live' | 'archive'>('live');
   archiveFrom = '';
+
+  // retention-форма
+  retentionValue = 7;
+  retentionUnit: 'minutes' | 'hours' | 'days' = 'days';
+  readonly savingRetention = signal(false);
+
   private readonly hlsBase = 'http://localhost:3088';
   private readonly apiBase = 'http://localhost:5000';
-
-  readonly playerSrc = computed(() => {
-    const id = this.id();
-    if (this.mode() === 'live') {
-      return `${this.hlsBase}/${id}/live/live.m3u8`;
-    } else {
-      const from = this.toLocalIso(this.archiveFrom);
-      return `${this.apiBase}/api/channels/${id}/archive?from=${encodeURIComponent(from)}`;
-    }
-  });
 
   readonly channel = computed(() =>
     this.store.channels().find(c => c.channelId === this.id()));
   readonly report = computed(() => this.store.health()[this.id()]);
 
-  ngOnInit(): void { this.store.loadAll(); }
+  readonly playerSrc = computed(() => {
+    const id = this.id();
+    if (this.mode() === 'live') {
+      return `${this.hlsBase}/${id}/live/live.m3u8`;
+    }
+    const from = this.toLocalIso(this.archiveFrom);
+    return `${this.apiBase}/api/channels/${id}/archive?from=${encodeURIComponent(from)}`;
+  });
 
-  badgeClass(status: ChannelView['status']): string {
-    switch (status) {
-      case 'Running':  return 'bg-emerald-500/15 text-emerald-400';
-      case 'Starting': return 'bg-amber-500/15 text-amber-400';
-      case 'Degraded': return 'bg-orange-500/15 text-orange-400';
-      case 'Failed':   return 'bg-rose-500/15 text-rose-400';
-      case 'Stopped':  return 'bg-slate-500/15 text-slate-400';
-      default:         return 'bg-slate-700/40 text-slate-300'; // Idle
+  readonly currentRetentionLabel = computed(() => {
+    const ch = this.channel();
+    if (!ch) return '';
+    const m = ch.retentionMinutes;
+    if (m % (24 * 60) === 0) return `${m / (24 * 60)} дн.`;
+    if (m % 60 === 0) return `${m / 60} ч.`;
+    return `${m} мин.`;
+  });
+
+  ngOnInit(): void {
+    this.store.loadChannel(this.id());
+  }
+
+  onStart(id: string): void {
+    this.store.start(id);
+  }
+  onStop(id: string): void {
+    this.store.stop(id);
+  }
+  onRestart(id: string): void {
+    this.store.restart(id);
+  }
+
+  async onDelete(id: string): Promise<void> {
+    const ok = await this.confirmService.ask({
+      title: 'Удалить канал?',
+      message: 'Действие необратимо. Канал и его настройки будут удалены. ' +
+        'Записанный архив останется на диске.',
+      confirmLabel: 'Удалить',
+      danger: true,
+      icon: faTrash,
+    });
+    if (!ok) return;
+
+    this.api.delete(id).subscribe({
+      next: () => {
+        this.toast.success('Канал удалён');
+        this.router.navigate(['/channels']);
+      },
+      error: () => this.toast.error('Не удалось удалить канал'),
+    });
+  }
+
+  switchToLive(): void {
+    this.mode.set('live');
+    this.toast.info('Прямой эфир');
+  }
+
+  switchToArchive(): void {
+    if (!this.archiveFrom) return;
+    this.mode.set('archive');
+    this.toast.info('Переключено на архив');
+  }
+
+  saveRetention(id: string): void {
+    const minutes = this.retentionToMinutes();
+    if (minutes < 1) { this.toast.error('Минимум 1 минута'); return; }
+    if (minutes > 14 * 24 * 60) { this.toast.error('Максимум 14 дней'); return; }
+
+    this.savingRetention.set(true);
+    this.api.updateRetention(id, minutes).subscribe({
+      next: () => {
+        this.store.loadChannel(id);
+        this.toast.success('Настройки хранения сохранены');
+        this.savingRetention.set(false);
+      },
+      error: () => {
+        this.toast.error('Не удалось сохранить настройки');
+        this.savingRetention.set(false);
+      },
+    });
+  }
+
+  private retentionToMinutes(): number {
+    switch (this.retentionUnit) {
+      case 'days': return this.retentionValue * 24 * 60;
+      case 'hours': return this.retentionValue * 60;
+      default: return this.retentionValue;
     }
   }
 
@@ -168,14 +329,5 @@ export class ChannelDetailComponent implements OnInit {
     const om = pad(Math.abs(offsetMin) % 60);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
       `T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${oh}:${om}`;
-  }
-
-  switchToLive(): void {
-    this.mode.set('live');
-  }
-
-  switchToArchive(): void {
-    if (!this.archiveFrom) return;
-    this.mode.set('archive');
   }
 }

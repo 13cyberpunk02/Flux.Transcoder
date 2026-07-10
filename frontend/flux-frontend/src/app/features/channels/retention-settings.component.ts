@@ -1,4 +1,4 @@
-﻿import { Component, inject, input, signal, computed } from '@angular/core';
+﻿import { Component, inject, input, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChannelsStore } from './channels.store';
 
@@ -6,6 +6,7 @@ import { ChannelsStore } from './channels.store';
   selector: 'app-retention-settings',
   standalone: true,
   imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
       <h3 class="font-medium mb-3">Хранение архива</h3>

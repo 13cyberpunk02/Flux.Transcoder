@@ -1,4 +1,4 @@
-﻿import { Component, inject, input, signal, OnInit, effect } from '@angular/core';
+﻿import { Component, inject, input, signal, OnInit, effect, ChangeDetectionStrategy } from '@angular/core';
 import { NgApexchartsModule, ChartComponent } from 'ng-apexcharts';
 import type { ApexOptions } from 'ng-apexcharts';
 import { ChannelsApi } from '../../core/api/channels.api';
@@ -8,6 +8,7 @@ import {MetricPoint} from '../../core/api/models';
   selector: 'app-bitrate-chart',
   standalone: true,
   imports: [NgApexchartsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="glass rounded-2xl p-5">
       <div class="flex items-center justify-between mb-4">
