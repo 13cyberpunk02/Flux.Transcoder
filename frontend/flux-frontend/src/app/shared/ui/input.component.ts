@@ -1,6 +1,8 @@
-﻿import { Component, input, model, output } from '@angular/core';
+﻿import { Component, input, model, output, computed } from '@angular/core';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+
+type Size = 'sm' | 'md' | 'lg';
 
 @Component({
   selector: 'ui-input',
@@ -37,15 +39,23 @@ export class InputComponent {
   readonly icon = input<IconDefinition>();
   readonly placeholder = input('');
   readonly type = input('text');
+  readonly size = input<Size>('md');
   readonly autocomplete = input<string | null>(null);
   readonly value = model('');
   readonly enter = output<void>();
 
-  readonly inputClass = () =>
-    'w-full py-2.5 rounded-xl outline-none transition ' +
+  private readonly sizes: Record<Size, string> = {
+    sm: 'h-9 text-sm',
+    md: 'h-11 text-sm',
+    lg: 'h-12 text-base',
+  };
+
+  readonly inputClass = computed(() =>
+    'w-full rounded-xl outline-none transition ' +
+    this.sizes[this.size()] + ' ' +
     'bg-[rgb(var(--surface)/var(--surface-opacity))] ' +
     'border border-[rgb(var(--border)/var(--border-opacity))] ' +
     'text-[rgb(var(--text))] placeholder:text-[rgb(var(--text-muted)/0.6)] ' +
     'focus:border-[rgb(var(--accent)/0.5)] ' +
-    (this.icon() ? 'pl-10 pr-3' : 'px-3');
+    (this.icon() ? 'pl-10 pr-3' : 'px-3'));
 }

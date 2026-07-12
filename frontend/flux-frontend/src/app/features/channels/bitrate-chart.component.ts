@@ -1,7 +1,7 @@
-﻿import { Component, inject, input, signal, OnInit, effect, ChangeDetectionStrategy } from '@angular/core';
-import { NgApexchartsModule, ChartComponent } from 'ng-apexcharts';
-import type { ApexOptions } from 'ng-apexcharts';
-import { ChannelsApi } from '../../core/api/channels.api';
+﻿import {Component, inject, input, signal, OnInit, effect, ChangeDetectionStrategy} from '@angular/core';
+import {NgApexchartsModule, ChartComponent} from 'ng-apexcharts';
+import type {ApexOptions} from 'ng-apexcharts';
+import {ChannelsApi} from '../../core/api/channels.api';
 import {MetricPoint} from '../../core/api/models';
 
 @Component({
@@ -16,9 +16,9 @@ import {MetricPoint} from '../../core/api/models';
         <div class="flex gap-1">
           @for (r of ranges; track r.minutes) {
             <button (click)="setRange(r.minutes)"
-              [class]="range() === r.minutes
-                ? 'px-2.5 py-1 rounded-lg text-xs bg-indigo-500/30 text-indigo-200 border border-indigo-400/30'
-                : 'px-2.5 py-1 rounded-lg text-xs bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5'">
+                    [class]="range() === r.minutes
+                        ? 'px-2.5 py-1 rounded-lg text-xs font-medium bg-[rgb(var(--accent)/0.25)] text-[rgb(var(--accent))] border border-[rgb(var(--accent)/0.4)]'
+                        : 'px-2.5 py-1 rounded-lg text-xs bg-[rgb(var(--surface)/var(--surface-opacity))] text-[rgb(var(--text-muted))] border border-[rgb(var(--border)/var(--border-opacity))] hover:text-[rgb(var(--text))]'">
               {{ r.label }}
             </button>
           }
@@ -40,7 +40,7 @@ import {MetricPoint} from '../../core/api/models';
           [grid]="chartOptions.grid!"
           [tooltip]="chartOptions.tooltip!"
           [dataLabels]="chartOptions.dataLabels!"
-          [colors]="chartOptions.colors!" />
+          [colors]="chartOptions.colors!"/>
       }
     </div>
   `,
@@ -50,9 +50,9 @@ export class BitrateChartComponent implements OnInit {
   private readonly api = inject(ChannelsApi);
 
   readonly ranges = [
-    { label: '1ч', minutes: 60 },
-    { label: '6ч', minutes: 360 },
-    { label: '24ч', minutes: 1440 },
+    {label: '1ч', minutes: 60},
+    {label: '6ч', minutes: 360},
+    {label: '24ч', minutes: 1440},
   ];
   readonly range = signal(60);
   readonly points = signal<MetricPoint[]>([]);
@@ -67,7 +67,9 @@ export class BitrateChartComponent implements OnInit {
     });
   }
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   setRange(minutes: number): void {
     this.range.set(minutes);
@@ -77,7 +79,10 @@ export class BitrateChartComponent implements OnInit {
   private load(): void {
     this.loading.set(true);
     this.api.getMetrics(this.channelId(), this.range()).subscribe({
-      next: data => { this.points.set(data); this.loading.set(false); },
+      next: data => {
+        this.points.set(data);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -86,18 +91,18 @@ export class BitrateChartComponent implements OnInit {
     return {
       series: [{
         name: 'Битрейт (kbps)',
-        data: data.map(p => ({ x: new Date(p.time).getTime(), y: Math.round(p.avgBitrate) })),
+        data: data.map(p => ({x: new Date(p.time).getTime(), y: Math.round(p.avgBitrate)})),
       }],
       chart: {
         type: 'area',
         height: 256,
         background: 'transparent',
-        toolbar: { show: false },
-        animations: { enabled: true, speed: 400 },
+        toolbar: {show: false},
+        animations: {enabled: true, speed: 400},
         fontFamily: 'inherit',
       },
       colors: ['#818cf8'],
-      stroke: { curve: 'smooth', width: 2 },
+      stroke: {curve: 'smooth', width: 2},
       fill: {
         type: 'gradient',
         gradient: {
@@ -107,7 +112,7 @@ export class BitrateChartComponent implements OnInit {
           stops: [0, 100],
         },
       },
-      dataLabels: { enabled: false },
+      dataLabels: {enabled: false},
       grid: {
         borderColor: 'rgba(255,255,255,0.08)',
         strokeDashArray: 4,
@@ -115,21 +120,21 @@ export class BitrateChartComponent implements OnInit {
       xaxis: {
         type: 'datetime',
         labels: {
-          style: { colors: '#94a3b8' },
+          style: {colors: '#94a3b8'},
           datetimeUTC: false,
         },
-        axisBorder: { color: 'rgba(255,255,255,0.1)' },
-        axisTicks: { color: 'rgba(255,255,255,0.1)' },
+        axisBorder: {color: 'rgba(255,255,255,0.1)'},
+        axisTicks: {color: 'rgba(255,255,255,0.1)'},
       },
       yaxis: {
         labels: {
-          style: { colors: '#94a3b8' },
+          style: {colors: '#94a3b8'},
           formatter: (val) => `${Math.round(val)}`,
         },
       },
       tooltip: {
         theme: 'dark',
-        x: { format: 'HH:mm' },
+        x: {format: 'HH:mm'},
       },
     };
   }

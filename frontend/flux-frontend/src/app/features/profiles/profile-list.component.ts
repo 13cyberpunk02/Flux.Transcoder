@@ -11,11 +11,12 @@ import { InputComponent } from '../../shared/ui/input.component';
 import { ButtonComponent } from '../../shared/ui/button.component';
 import { IconButtonComponent } from '../../shared/ui/icon-button.component';
 import { ToastService } from '../../core/toast/toast.service';
+import {SelectComponent} from '../../shared/ui/select.component';
 
 @Component({
   selector: 'app-profile-list',
   standalone: true,
-  imports: [FormsModule, FontAwesomeModule, InputComponent, ButtonComponent, IconButtonComponent],
+  imports: [FormsModule, FontAwesomeModule, InputComponent, ButtonComponent, IconButtonComponent, SelectComponent],
   template: `
     <!-- ЗАГОЛОВОК -->
     <div class="flex items-center justify-between mb-6">
@@ -39,7 +40,7 @@ import { ToastService } from '../../core/toast/toast.service';
 
     <!-- ФОРМА СОЗДАНИЯ -->
     @if (showForm()) {
-      <div class="glass rounded-2xl p-6 mb-8">
+      <div class="glass rounded-2xl p-6 mb-8 relative z-20">
         <div class="flex flex-col gap-5">
           <ui-input label="Название профиля" [labelIcon]="faTag"
             placeholder="например 1080p-nvenc" [(value)]="name" />
@@ -71,15 +72,11 @@ import { ToastService } from '../../core/toast/toast.service';
                            bg-[rgb(var(--surface)/var(--surface-opacity))]
                            border border-[rgb(var(--border)/var(--border-opacity))]
                            text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)]" />
-                  <select [(ngModel)]="r.codec"
-                    class="flex-1 px-3 py-2 rounded-xl outline-none text-sm
-                           bg-[rgb(var(--surface)/var(--surface-opacity))]
-                           border border-[rgb(var(--border)/var(--border-opacity))]
-                           text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)]">
-                    <option [ngValue]="0">X264</option>
-                    <option [ngValue]="1">Nvenc (NVIDIA)</option>
-                    <option [ngValue]="2">QSV (Intel)</option>
-                  </select>
+                  <ui-select
+                    class="flex-1"
+                    [options]="codecOptions"
+                    [value]="r.codec"
+                    (changed)="r.codec = $event" />
                   <ui-icon-button [icon]="faTrash" variant="danger" size="sm"
                     (clicked)="removeRendition($index)" />
                 </div>
@@ -139,6 +136,12 @@ export class ProfileListComponent implements OnInit {
   readonly renditions = signal<CreateRendition[]>([
     { width: 1920, height: 1080, bitrateKbps: 6000, codec: 0 },
   ]);
+
+  readonly codecOptions = [
+    { value: 0, label: 'X264' },
+    { value: 1, label: 'Nvenc (NVIDIA)' },
+    { value: 2, label: 'QSV (Intel)' },
+  ];
 
   readonly faPlus = faPlus;
   readonly faSliders = faSliders;

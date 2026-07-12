@@ -13,6 +13,7 @@ export class ThemeService {
       const html = document.documentElement;
       html.classList.remove('dark', 'light');
       html.classList.add(t);
+      html.style.colorScheme = t;
       localStorage.setItem('theme', t);
     });
   }

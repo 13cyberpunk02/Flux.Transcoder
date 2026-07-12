@@ -1,4 +1,4 @@
-import { Component, inject, signal, output, OnInit } from '@angular/core';
+import {Component, inject, signal, output, OnInit, computed} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faLink, faSliders, faPlus } from '@fortawesome/free-solid-svg-icons';
@@ -8,13 +8,14 @@ import { ProfilesStore } from '../profiles/profiles.store';
 import { InputComponent } from '../../shared/ui/input.component';
 import { ButtonComponent } from '../../shared/ui/button.component';
 import { ToastService } from '../../core/toast/toast.service';
+import {SelectComponent} from '../../shared/ui/select.component';
 
 @Component({
   selector: 'app-create-channel',
   standalone: true,
-  imports: [FormsModule, FontAwesomeModule, InputComponent, ButtonComponent],
+  imports: [FormsModule, FontAwesomeModule, InputComponent, ButtonComponent, SelectComponent],
   template: `
-    <div class="glass rounded-2xl p-6">
+    <div class="glass rounded-2xl p-6 relative z-20">
       <h3 class="font-medium text-[rgb(var(--text))] mb-4 flex items-center gap-2">
         <fa-icon [icon]="faPlus" class="text-[rgb(var(--accent))] text-sm" />
         Новый канал
@@ -29,20 +30,11 @@ import { ToastService } from '../../core/toast/toast.service';
 
         <!-- профиль -->
         <div>
-          <label class="flex items-center gap-1.5 text-sm mb-1.5 text-[rgb(var(--text-muted))]">
-            <fa-icon [icon]="faSliders" class="text-xs" />
-            Профиль кодирования
-          </label>
-          <select [(ngModel)]="profileId"
-            class="w-full px-3.5 py-2.5 rounded-xl outline-none transition
-                   bg-[rgb(var(--surface)/var(--surface-opacity))]
-                   border border-[rgb(var(--border)/var(--border-opacity))]
-                   text-[rgb(var(--text))] focus:border-[rgb(var(--accent)/0.5)]">
-            <option [ngValue]="null" disabled>— выберите профиль —</option>
-            @for (p of profiles.profiles(); track p.profileId) {
-              <option [ngValue]="p.profileId">{{ p.name }} ({{ p.renditions.length }} рендишенов)</option>
-            }
-          </select>
+          <ui-select
+            label="Профиль кодирования" [labelIcon]="faSliders"
+            [options]="profileOptions()"
+            placeholder="— выберите профиль —"
+            [(value)]="profileId" />
 
           @if (profiles.profiles().length === 0) {
             <p class="text-sm text-amber-400 mt-2">
@@ -67,9 +59,15 @@ export class CreateChannelComponent implements OnInit {
 
   readonly created = output<void>();
 
-  readonly sourceUrl = signal('');
-  profileId: string | null = null;
+  sourceUrl = signal('');
   readonly saving = signal(false);
+
+  profileId = signal<string | null>(null);
+  readonly profileOptions = computed(() =>
+    this.profiles.profiles().map(p => ({
+      value: p.profileId,
+      label: `${p.name} (${p.renditions.length} рендишенов)`,
+    })));
 
   readonly faLink = faLink;
   readonly faSliders = faSliders;
@@ -79,12 +77,12 @@ export class CreateChannelComponent implements OnInit {
 
   save(): void {
     if (!this.sourceUrl().trim()) { this.toast.error('Укажите источник'); return; }
-    if (!this.profileId) { this.toast.error('Выберите профиль'); return; }
+    if (!this.profileId()) { this.toast.error('Выберите профиль'); return; }
 
     this.saving.set(true);
-    this.channels.create({ sourceUrl: this.sourceUrl(), profileId: this.profileId });
+    this.channels.create({ sourceUrl: this.sourceUrl(), profileId: this.profileId()! });
     this.sourceUrl.set('');
-    this.profileId = null;
+    this.profileId.set(null);
     this.saving.set(false);
     this.created.emit();
   }
