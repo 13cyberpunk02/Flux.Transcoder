@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 export interface RenditionView { width: number; height: number; bitrateKbps: number; codec: string; }
 export interface ProfileView { profileId: string; name: string; renditions: RenditionView[]; }
 
-export interface CreateRendition { width: number; height: number; bitrateKbps: number; codec: number; }
+export interface CreateRendition { width: number; height: number; bitrateKbps: number; codec: string; }
 export interface CreateProfileRequest { name: string; renditions: CreateRendition[]; }
 
 @Injectable({ providedIn: 'root' })

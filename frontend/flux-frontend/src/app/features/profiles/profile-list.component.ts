@@ -15,7 +15,7 @@ interface RenditionRow {
   width: string;
   height: string;
   bitrateKbps: string;
-  codec: number;
+  codec: string;
 }
 
 @Component({
@@ -146,7 +146,7 @@ export class ProfileListComponent implements OnInit {
   readonly saving = signal(false);
   readonly name = signal('');
   readonly renditions = signal<RenditionRow[]>([
-    { width: '1920', height: '1080', bitrateKbps: '6000', codec: 0 },
+    { width: '1920', height: '1080', bitrateKbps: '6000', codec: 'X264' },
   ]);
 
   readonly faPlus = faPlus;
@@ -167,7 +167,7 @@ export class ProfileListComponent implements OnInit {
 
   addRendition(): void {
     this.renditions.update(list => [
-      ...list, { width: '1280', height: '720', bitrateKbps: '3000', codec: 0 },
+      ...list, { width: '1280', height: '720', bitrateKbps: '3000', codec: 'X264' },
     ]);
   }
 
@@ -180,7 +180,7 @@ export class ProfileListComponent implements OnInit {
       list.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
   }
 
-  updateCodec(i: number, codec: number): void {
+  updateCodec(i: number, codec: string): void {
     this.renditions.update(list =>
       list.map((r, idx) => idx === i ? { ...r, codec } : r));
   }
@@ -207,7 +207,7 @@ export class ProfileListComponent implements OnInit {
       await this.store.create({ name: this.name(), renditions });
       this.toast.success('Профиль создан');
       this.name.set('');
-      this.renditions.set([{ width: '1920', height: '1080', bitrateKbps: '6000', codec: 0 }]);
+      this.renditions.set([{ width: '1920', height: '1080', bitrateKbps: '6000', codec: 'X264' }]);
       this.showForm.set(false);
     } catch {
       this.toast.error('Не удалось создать профиль');
