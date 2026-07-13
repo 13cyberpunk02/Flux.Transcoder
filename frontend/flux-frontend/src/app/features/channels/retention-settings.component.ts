@@ -1,53 +1,72 @@
-﻿import { Component, inject, input, signal, computed, ChangeDetectionStrategy } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+﻿import { Component, inject, input, signal, computed } from '@angular/core';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faClockRotateLeft, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
+
+import { InputComponent } from '../../shared/ui/input.component';
+import { SelectComponent, SelectOption } from '../../shared/ui/select.component';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { ChannelsApi } from '../../core/api/channels.api';
 import { ChannelsStore } from './channels.store';
+import { ToastService } from '../../core/toast/toast.service';
+
+type Unit = 'minutes' | 'hours' | 'days';
 
 @Component({
   selector: 'app-retention-settings',
   standalone: true,
-  imports: [FormsModule],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [FontAwesomeModule, InputComponent, SelectComponent, ButtonComponent],
   template: `
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <h3 class="font-medium mb-3">Хранение архива</h3>
-      <p class="text-sm text-slate-400 mb-4">
-        Сейчас: {{ currentLabel() }}
-      </p>
+    <div>
+      <label class="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))] mb-2">
+        <fa-icon [icon]="faClockRotateLeft" class="text-xs" />
+        Хранение архива
+      </label>
 
-      <div class="flex gap-2 items-end">
-        <div>
-          <label class="block text-xs text-slate-500 mb-1">Значение</label>
-          <input type="number" [(ngModel)]="value" min="1"
-            class="w-24 px-3 py-2 rounded-md bg-slate-800 border border-slate-700 outline-none" />
-        </div>
-        <div>
-          <label class="block text-xs text-slate-500 mb-1">Единица</label>
-          <select [(ngModel)]="unit"
-            class="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 outline-none">
-            <option value="minutes">минут</option>
-            <option value="hours">часов</option>
-            <option value="days">дней</option>
-          </select>
-        </div>
-        <button (click)="save()" [disabled]="saving()"
-          class="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition font-medium">
-          {{ saving() ? 'Сохраняем…' : 'Сохранить' }}
-        </button>
+      <div class="flex items-center gap-2 flex-wrap">
+        <ui-input
+          type="number" size="md"
+          class="w-20"
+          [(value)]="value" />
+
+        <ui-select
+          size="md"
+          class="w-32"
+          [options]="unitOptions"
+          [(value)]="unit" />
+
+        <ui-button
+          label="Сохранить" [icon]="faFloppyDisk"
+          variant="secondary" size="md"
+          [loading]="saving()"
+          (clicked)="save()" />
+
+        <span class="text-xs text-[rgb(var(--text-muted))] ml-1">
+          сейчас: {{ currentLabel() }}
+        </span>
       </div>
-
-      @if (error()) { <p class="text-sm text-rose-400 mt-2">{{ error() }}</p> }
     </div>
   `,
 })
 export class RetentionSettingsComponent {
   readonly channelId = input.required<string>();
   readonly currentMinutes = input.required<number>();
-  private readonly store = inject(ChannelsStore);
 
-  value = 7;
-  unit: 'minutes' | 'hours' | 'days' = 'days';
+  private readonly api = inject(ChannelsApi);
+  private readonly store = inject(ChannelsStore);
+  private readonly toast = inject(ToastService);
+
+  readonly faClockRotateLeft = faClockRotateLeft;
+  readonly faFloppyDisk = faFloppyDisk;
+
+  readonly value = signal('7');            // строка — для ui-input (model<string>)
+  readonly unit = signal<Unit>('days');
   readonly saving = signal(false);
-  readonly error = signal<string | null>(null);
+
+  readonly unitOptions: SelectOption[] = [
+    { value: 'minutes', label: 'минут' },
+    { value: 'hours', label: 'часов' },
+    { value: 'days', label: 'дней' },
+  ];
 
   readonly currentLabel = computed(() => {
     const m = this.currentMinutes();
@@ -57,21 +76,30 @@ export class RetentionSettingsComponent {
   });
 
   save(): void {
-    this.error.set(null);
     const minutes = this.toMinutes();
-    if (minutes < 1) { this.error.set('Минимум 1 минута'); return; }
-    if (minutes > 14 * 24 * 60) { this.error.set('Максимум 14 дней'); return; }
+    if (minutes < 1) { this.toast.error('Минимум 1 минута'); return; }
+    if (minutes > 14 * 24 * 60) { this.toast.error('Максимум 14 дней'); return; }
 
     this.saving.set(true);
-    this.store.updateRetention(this.channelId(), minutes);
-    this.saving.set(false);
+    this.api.updateRetention(this.channelId(), minutes).subscribe({
+      next: () => {
+        this.store.loadChannel(this.channelId());
+        this.toast.success('Настройки хранения сохранены');
+        this.saving.set(false);
+      },
+      error: () => {
+        this.toast.error('Не удалось сохранить настройки');
+        this.saving.set(false);
+      },
+    });
   }
 
   private toMinutes(): number {
-    switch (this.unit) {
-      case 'days': return this.value * 24 * 60;
-      case 'hours': return this.value * 60;
-      default: return this.value;
+    const val = parseInt(this.value(), 10) || 0;
+    switch (this.unit()) {
+      case 'days': return val * 24 * 60;
+      case 'hours': return val * 60;
+      default: return val;
     }
   }
 }

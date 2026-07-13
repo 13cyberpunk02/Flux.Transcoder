@@ -19,15 +19,16 @@ import {ButtonComponent} from '../../shared/ui/button.component';
 import {ToastService} from '../../core/toast/toast.service';
 import {ConfirmService} from '../../core/confirm/confirm.service';
 import {ChannelsApi} from '../../core/api/channels.api';
-import {SelectComponent} from '../../shared/ui/select.component';
 import {InputComponent} from '../../shared/ui/input.component';
+import {RetentionSettingsComponent} from './retention-settings.component';
 
 @Component({
   selector: 'app-channel-detail',
   standalone: true,
   imports: [
     FormsModule, RouterLink, DecimalPipe, FontAwesomeModule,
-    PlayerComponent, BitrateChartComponent, StatusBadgeComponent, ButtonComponent, SelectComponent, InputComponent,
+    PlayerComponent, BitrateChartComponent, StatusBadgeComponent, ButtonComponent, InputComponent,
+    RetentionSettingsComponent
   ],
   template: `
     @if (channel(); as ch) {
@@ -72,19 +73,9 @@ import {InputComponent} from '../../shared/ui/input.component';
 
         <!-- RETENTION — вынесен наверх, рядом с управлением -->
         <div class="pt-4 border-t border-[rgb(var(--border)/var(--border-opacity))]">
-          <label class="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))] mb-2">
-            <fa-icon [icon]="faClockRotateLeft" class="text-xs"/>
-            Хранение архива
-          </label>
-          <div class="flex items-center gap-2 flex-wrap">
-            <ui-input type="number" size="md" [(value)]="retentionValue" class="w-20"/>
-            <ui-select size="md" [options]="retentionUnitOptions" [(value)]="retentionUnit" class="w-32"/>
-            <ui-button label="Сохранить" [icon]="faFloppyDisk" variant="secondary" size="md"
-                       [loading]="savingRetention()" (clicked)="saveRetention(ch.channelId)"/>
-            <span class="text-xs text-[rgb(var(--text-muted))] ml-1">
-                сейчас: {{ currentRetentionLabel() }}
-            </span>
-          </div>
+          <app-retention-settings
+            [channelId]="ch.channelId"
+            [currentMinutes]="ch.retentionMinutes"/>
         </div>
       </div>
 
@@ -198,26 +189,14 @@ export class ChannelDetailComponent implements OnInit {
   readonly faTrash = faTrash;
   readonly faTowerBroadcast = faTowerBroadcast;
   readonly faClockRotateLeft = faClockRotateLeft;
-  readonly faFloppyDisk = faFloppyDisk;
   readonly faGaugeHigh = faGaugeHigh;
   readonly faFilm = faFilm;
   readonly faClock = faClock;
   readonly faVideo = faVideo;
 
-  retentionUnit = signal<'minutes' | 'hours' | 'days'>('days');
-  readonly retentionUnitOptions = [
-    {value: 'minutes', label: 'минут'},
-    {value: 'hours', label: 'часов'},
-    {value: 'days', label: 'дней'},
-  ];
-
   // просмотр
   readonly mode = signal<'live' | 'archive'>('live');
   archiveFrom = signal('');
-
-  // retention-форма
-  retentionValue = signal('7');
-  readonly savingRetention = signal(false);
 
   private readonly hlsBase = 'http://localhost:3088';
   private readonly apiBase = 'http://localhost:5000';
@@ -233,15 +212,6 @@ export class ChannelDetailComponent implements OnInit {
     }
     const from = this.toLocalIso(this.archiveFrom());
     return `${this.apiBase}/api/channels/${id}/archive?from=${encodeURIComponent(from)}`;
-  });
-
-  readonly currentRetentionLabel = computed(() => {
-    const ch = this.channel();
-    if (!ch) return '';
-    const m = ch.retentionMinutes;
-    if (m % (24 * 60) === 0) return `${m / (24 * 60)} дн.`;
-    if (m % 60 === 0) return `${m / 60} ч.`;
-    return `${m} мин.`;
   });
 
   ngOnInit(): void {
@@ -289,43 +259,6 @@ export class ChannelDetailComponent implements OnInit {
     if (!this.archiveFrom) return;
     this.mode.set('archive');
     this.toast.info('Переключено на архив');
-  }
-
-  saveRetention(id: string): void {
-    const minutes = this.retentionToMinutes();
-    if (minutes < 1) {
-      this.toast.error('Минимум 1 минута');
-      return;
-    }
-    if (minutes > 14 * 24 * 60) {
-      this.toast.error('Максимум 14 дней');
-      return;
-    }
-
-    this.savingRetention.set(true);
-    this.api.updateRetention(id, minutes).subscribe({
-      next: () => {
-        this.store.loadChannel(id);
-        this.toast.success('Настройки хранения сохранены');
-        this.savingRetention.set(false);
-      },
-      error: () => {
-        this.toast.error('Не удалось сохранить настройки');
-        this.savingRetention.set(false);
-      },
-    });
-  }
-
-  private retentionToMinutes(): number {
-    const val = parseInt(this.retentionValue(), 10) || 0;
-    switch (this.retentionUnit()) {
-      case 'days':
-        return val * 24 * 60;
-      case 'hours':
-        return val * 60;
-      default:
-        return val;
-    }
   }
 
   private toLocalIso(dateTimeLocal: string): string {
