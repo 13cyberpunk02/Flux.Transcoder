@@ -1,81 +1,76 @@
 ﻿import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faTowerBroadcast, faUser, faLock, faRightToBracket, faSun, faMoon,
-} from '@fortawesome/free-solid-svg-icons';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { form, FormField, required, submit } from '@angular/forms/signals';
+import { MatFormField, MatLabel, MatError, MatSuffix } from '@angular/material/form-field';
+import { MatInput } from '@angular/material/input';
+import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 
-import { InputComponent } from '../../shared/ui/input.component';
-import { ButtonComponent } from '../../shared/ui/button.component';
 import { AuthApi } from '../../core/api/auth.api';
 import { TokenStore } from '../../core/auth/token.store';
 import { ThemeService } from '../../core/theme/theme.service';
 
 @Component({
   selector: 'app-login',
-  standalone: true,
-  imports: [FontAwesomeModule, InputComponent, ButtonComponent],
+  imports: [
+    FormField, MatFormField, MatLabel, MatError, MatSuffix, MatInput,
+    MatButton, MatIconButton, MatIcon, MatProgressSpinner,
+  ],
   template: `
-    <!-- переключатель темы -->
-    <button (click)="theme.toggle()"
-      class="fixed top-4 right-4 z-10 flex items-center justify-center w-10 h-10 rounded-xl
-             glass text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text))] transition">
-      <fa-icon [icon]="theme.theme() === 'dark' ? faSun : faMoon" />
+    <button matIconButton class="!fixed top-4 right-4" (click)="theme.toggle()" aria-label="Сменить тему">
+      <mat-icon>{{ theme.theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
     </button>
 
     <div class="min-h-screen flex items-center justify-center px-4">
       <div class="w-full max-w-sm">
-
-        <div class="flex flex-col items-center mb-8">
-          <div class="flex items-center justify-center w-16 h-16 rounded-2xl mb-4
-                      bg-[rgb(var(--accent)/0.2)] text-[rgb(var(--accent))]
-                      shadow-lg shadow-[rgb(var(--accent)/0.15)]">
-            <fa-icon [icon]="faTowerBroadcast" class="text-2xl" />
-          </div>
-          <h1 class="text-2xl font-semibold text-[rgb(var(--text))]">
-            Flux<span class="text-[rgb(var(--accent))]">Transcoder</span>
-          </h1>
-          <p class="text-sm text-[rgb(var(--text-muted))] mt-1">
-            Панель управления трансляциями
-          </p>
+        <div class="flex flex-col items-center mb-6">
+          <span class="flex items-center justify-center w-12 h-12 rounded-xl bg-primary text-on-primary mb-3">
+            <mat-icon>sensors</mat-icon>
+          </span>
+          <h1 class="text-xl font-semibold">Flux<span class="text-primary">Transcoder</span></h1>
+          <p class="text-sm text-muted mt-1">Панель управления трансляциями</p>
         </div>
 
-        <!-- ФОРМА -->
-        <div class="glass rounded-2xl p-7">
-          <div class="flex flex-col gap-4">
-
-            <ui-input
-              label="Логин" [labelIcon]="faUser"
-              autocomplete="username"
-              [(value)]="username"
-              (enter)="submit()" />
-
-            <ui-input
-              label="Пароль" [labelIcon]="faLock" type="password"
-              autocomplete="current-password"
-              [(value)]="password"
-              (enter)="submit()" />
-
-            @if (error()) {
-              <div class="flex items-center gap-2 px-3 py-2 rounded-lg
-                          bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
-                {{ error() }}
-              </div>
+        <form (submit)="onSubmit($event)" novalidate class="panel flex flex-col gap-3 p-6">
+          <mat-form-field>
+            <mat-label>Логин</mat-label>
+            <input matInput autocomplete="username" [formField]="loginForm.username" />
+            @if (loginForm.username().invalid()) {
+              <mat-error>{{ loginForm.username().errors()[0]?.message }}</mat-error>
             }
+          </mat-form-field>
 
-            <ui-button
-              class="mt-1 block"
-              label="Войти" loadingLabel="Входим…"
-              [icon]="faRightToBracket"
-              variant="primary" [full]="true"
-              [loading]="loading()"
-              (clicked)="submit()" />
-          </div>
-        </div>
+          <mat-form-field>
+            <mat-label>Пароль</mat-label>
+            <input matInput [type]="showPassword() ? 'text' : 'password'" autocomplete="current-password"
+                   [formField]="loginForm.password" />
+            <button matIconButton matSuffix type="button" (click)="showPassword.update(v => !v)"
+                    [attr.aria-label]="showPassword() ? 'Скрыть пароль' : 'Показать пароль'">
+              <mat-icon>{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            @if (loginForm.password().invalid()) {
+              <mat-error>{{ loginForm.password().errors()[0]?.message }}</mat-error>
+            }
+          </mat-form-field>
 
-        <p class="text-center text-xs text-[rgb(var(--text-muted))] mt-6">
-          Flux Transcoder · система транскодирования и DVR
-        </p>
+          @if (error()) {
+            <div role="alert" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-error-container text-on-error-container">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>{{ error() }}
+            </div>
+          }
+
+          <button matButton="filled" type="submit" class="!h-11" [disabled]="loginForm().submitting()">
+            @if (loginForm().submitting()) {
+              <mat-progress-spinner mode="indeterminate" diameter="18" class="mr-2" />
+            }
+            Войти
+          </button>
+        </form>
+
+        <p class="text-center text-xs text-muted mt-6">Flux Transcoder · транскодирование и DVR</p>
       </div>
     </div>
   `,
@@ -84,36 +79,32 @@ export class LoginComponent {
   private readonly api = inject(AuthApi);
   private readonly tokens = inject(TokenStore);
   private readonly router = inject(Router);
-  readonly theme = inject(ThemeService);
+  protected readonly theme = inject(ThemeService);
 
-  readonly faTowerBroadcast = faTowerBroadcast;
-  readonly faUser = faUser;
-  readonly faLock = faLock;
-  readonly faRightToBracket = faRightToBracket;
-  readonly faSun = faSun;
-  readonly faMoon = faMoon;
+  private readonly model = signal({ username: '', password: '' });
+  protected readonly loginForm = form(this.model, p => {
+    required(p.username, { message: 'Введите логин' });
+    required(p.password, { message: 'Введите пароль' });
+  });
 
-  readonly username = signal('');
-  readonly password = signal('');
-  readonly loading = signal(false);
-  readonly error = signal<string | null>(null);
+  protected readonly showPassword = signal(false);
+  protected readonly error = signal<string | undefined>(undefined);
 
-  submit(): void {
-    if (!this.username().trim() || !this.password()) {
-      this.error.set('Введите логин и пароль');
-      return;
-    }
-    this.loading.set(true);
-    this.error.set(null);
-    this.api.login({ username: this.username(), password: this.password() }).subscribe({
-      next: res => {
+  onSubmit(event: Event): void {
+    event.preventDefault();
+    this.error.set(undefined);
+
+    submit(this.loginForm, async () => {
+      try {
+        const res = await firstValueFrom(this.api.login(this.model()));
         this.tokens.set(res.token);
-        this.router.navigate(['/channels']);
-      },
-      error: () => {
-        this.error.set('Неверный логин или пароль');
-        this.loading.set(false);
-      },
+        await this.router.navigate(['/channels']);
+      } catch (err) {
+        this.error.set(
+          err instanceof HttpErrorResponse && err.status === 401
+            ? 'Неверный логин или пароль'
+            : 'Сервер недоступен, попробуйте позже');
+      }
     });
   }
 }

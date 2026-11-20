@@ -1,8 +1,18 @@
-﻿export interface ChannelView {
+﻿export type ChannelStatus = 'Idle' | 'Starting' | 'Running' | 'Degraded' | 'Failed' | 'Stopped';
+
+/** Статусы, в которых канал не транслируется: его можно запустить или удалить. */
+export const INACTIVE_STATUSES: readonly ChannelStatus[] = ['Idle', 'Stopped', 'Failed'];
+export const isInactive = (s: ChannelStatus) => INACTIVE_STATUSES.includes(s);
+/** Рестарт разрешён доменом из этих статусов. */
+export const canRestart = (s: ChannelStatus) =>
+  s === 'Starting' || s === 'Running' || s === 'Degraded' || s === 'Failed';
+export const canStop = (s: ChannelStatus) => s !== 'Idle' && s !== 'Stopped';
+
+export interface ChannelView {
   channelId: string;
   sourceUrl: string;
   profileId: string;
-  status: 'Idle' | 'Starting' | 'Running' | 'Degraded' | 'Failed' | 'Stopped';
+  status: ChannelStatus;
   retentionMinutes: number;
 }
 

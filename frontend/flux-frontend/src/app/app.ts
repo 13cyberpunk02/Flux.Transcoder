@@ -1,16 +1,13 @@
-import {Component, inject, signal, ChangeDetectionStrategy} from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import {ThemeService} from './core/theme/theme.service';
-import {ToastContainerComponent} from './core/toast/toast-container.component';
-import {ConfirmModalComponent} from './core/confirm/confirm-modal.component';
+import { ThemeService } from './core/theme/theme.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastContainerComponent, ConfirmModalComponent],
-  templateUrl: './app.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrl: './app.css'
+  imports: [RouterOutlet],
+  template: `<router-outlet />`,
 })
 export class App {
+  // создаём сервис темы при старте — он применяет app-dark и color-scheme
   private readonly theme = inject(ThemeService);
 }

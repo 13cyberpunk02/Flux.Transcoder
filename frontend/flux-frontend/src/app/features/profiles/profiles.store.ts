@@ -1,35 +1,48 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal, computed } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { ProfilesApi, ProfileView, CreateProfileRequest } from '../../core/api/profiles.api';
-import {ToastService} from '../../core/toast/toast.service';
+import { Notifier } from '../../core/notify/notifier';
 
 @Injectable({ providedIn: 'root' })
 export class ProfilesStore {
   private readonly api = inject(ProfilesApi);
-  private readonly toast = inject(ToastService);
+  private readonly notify = inject(Notifier);
 
   private readonly _profiles = signal<ProfileView[]>([]);
   private readonly _loading = signal(false);
+  private readonly _loaded = signal(false);
 
   readonly profiles = this._profiles.asReadonly();
   readonly loading = this._loading.asReadonly();
+  readonly loaded = this._loaded.asReadonly();
+
+  /** id -> профиль, для подписи профиля в таблице каналов. */
+  readonly byId = computed(() => new Map(this._profiles().map(p => [p.profileId, p])));
 
   loadAll(): void {
     this._loading.set(true);
     this.api.getAll().subscribe({
-      next: list => { this._profiles.set(list); this._loading.set(false); },
-      error: () => this._loading.set(false),
+      next: list => {
+        this._profiles.set(list);
+        this._loading.set(false);
+        this._loaded.set(true);
+      },
+      error: err => {
+        this._loading.set(false);
+        this.notify.error('Не удалось загрузить профили', err);
+      },
     });
   }
 
-  create(body: CreateProfileRequest): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.api.create(body).subscribe({
-        next: () => { this.loadAll(); resolve(); this.toast.success('Профиль создан'); },
-        error: err => {
-          reject(err);
-          this.toast.error('Не удалось создать профиль');
-        },
-      });
-    });
+  async create(body: CreateProfileRequest): Promise<boolean> {
+    try {
+      await firstValueFrom(this.api.create(body));
+      this.loadAll();
+      this.notify.success('Профиль создан');
+      return true;
+    } catch (err) {
+      this.notify.error('Не удалось создать профиль', err);
+      return false;
+    }
   }
 }

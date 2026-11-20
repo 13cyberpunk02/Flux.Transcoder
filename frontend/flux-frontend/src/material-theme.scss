@@ -1,0 +1,83 @@
+@use '@angular/material' as mat;
+
+// Тема Angular Material 3.
+// Цвета через light-dark(): светлая/тёмная схема переключается свойством
+// color-scheme на <html> (его ставит ThemeService), отдельного класса не нужно.
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$cyan-palette,
+      tertiary: mat.$azure-palette,
+    ),
+    typography: (
+      plain-family: ("Inter Variable", Inter, Roboto, ui-sans-serif, system-ui, sans-serif),
+      brand-family: ("Inter Variable", Inter, Roboto, ui-sans-serif, system-ui, sans-serif),
+    ),
+    // плотнее стандарта — пульт оператора, много данных на экране
+    density: -2,
+  ));
+
+  // таблица и диалоги — на поверхностях M3, без лишних теней
+  @include mat.table-overrides((
+    background-color: var(--mat-sys-surface-container-low),
+    header-headline-color: var(--mat-sys-on-surface-variant),
+    row-item-outline-color: var(--mat-sys-outline-variant),
+  ));
+}
+
+// опасные действия (Стоп / Удалить): цвет ошибки M3 для любых вариантов кнопок
+.danger-button {
+  @include mat.button-overrides((
+    filled-container-color: var(--mat-sys-error),
+    filled-label-text-color: var(--mat-sys-on-error),
+    outlined-label-text-color: var(--mat-sys-error),
+    outlined-outline-color: var(--mat-sys-error),
+    text-label-text-color: var(--mat-sys-error),
+  ));
+  @include mat.icon-button-overrides((
+    icon-color: var(--mat-sys-error),
+  ));
+}
+
+.success-button {
+  @include mat.icon-button-overrides((
+    icon-color: #16a34a,
+  ));
+}
+
+// уведомления: ошибка — на error-container, успех — на primary-container
+.snack-error {
+  @include mat.snack-bar-overrides((
+    container-color: var(--mat-sys-error-container),
+    supporting-text-color: var(--mat-sys-on-error-container),
+    button-color: var(--mat-sys-on-error-container),
+  ));
+}
+
+.snack-success {
+  @include mat.snack-bar-overrides((
+    container-color: var(--mat-sys-primary-container),
+    supporting-text-color: var(--mat-sys-on-primary-container),
+  ));
+}
+
+// компактные поля в панелях инструментов (поиск над таблицей) — по высоте как toggle-группа
+.dense-field {
+  @include mat.form-field-density(-4);
+}
+
+// поля в диалогах — на всю ширину
+.mat-mdc-dialog-content .mat-mdc-form-field {
+  width: 100%;
+}
+
+// диалоги: заметная поверхность и подложка (в тёмной теме стандартная почти не видна)
+html {
+  @include mat.dialog-overrides((
+    container-color: var(--mat-sys-surface-container-high),
+  ));
+}
+
+.app-dark .cdk-overlay-dark-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}

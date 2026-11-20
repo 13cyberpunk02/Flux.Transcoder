@@ -1,6 +1,10 @@
 ﻿import { Injectable, signal, effect } from '@angular/core';
 
-type Theme = 'dark' | 'light';
+export type Theme = 'dark' | 'light';
+
+/** CSS-класс тёмной темы — тот же селектор передан в providePrimeNG (darkModeSelector). */
+export const DARK_CLASS = 'app-dark';
+const STORAGE_KEY = 'theme';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -11,26 +15,23 @@ export class ThemeService {
     effect(() => {
       const t = this._theme();
       const html = document.documentElement;
-      html.classList.remove('dark', 'light');
-      html.classList.add(t);
+      html.classList.toggle(DARK_CLASS, t === 'dark');
       html.style.colorScheme = t;
-      localStorage.setItem('theme', t);
+      try { localStorage.setItem(STORAGE_KEY, t); } catch { /* приватный режим */ }
     });
   }
 
   toggle(): void {
-    this._theme.set(this._theme() === 'dark' ? 'light' : 'dark');
-  }
-
-  set(theme: Theme): void {
-    this._theme.set(theme);
+    this._theme.update(t => (t === 'dark' ? 'light' : 'dark'));
   }
 
   private resolveInitial(): Theme {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || saved === 'light') return saved;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === 'dark' || saved === 'light') return saved;
+    } catch { /* приватный режим */ }
 
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    return prefersDark ? 'dark' : 'light';
+    // по умолчанию — как в ОС
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 }

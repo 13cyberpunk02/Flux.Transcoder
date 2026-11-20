@@ -27,13 +27,12 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should render router outlet and global overlays', async () => {
+  it('should render router outlet and apply theme', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
 
     expect(el.querySelector('router-outlet')).not.toBeNull();
-    expect(el.querySelector('app-toast-container')).not.toBeNull();
-    expect(el.querySelector('app-confirm-modal')).not.toBeNull();
+    expect(['light', 'dark']).toContain(document.documentElement.style.colorScheme);
   });
 });

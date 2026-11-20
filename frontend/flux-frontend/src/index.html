@@ -1,17 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>FluxFrontend</title>
+  <title>Flux Transcoder</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script>
+    // тема до старта Angular — без вспышки светлого фона
     (function () {
-      var saved = localStorage.getItem('theme');
-      var dark = saved ? saved === 'dark'
-        : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.classList.add(dark ? 'dark' : 'light');
+      var dark;
+      try {
+        var saved = localStorage.getItem('theme');
+        dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      } catch (e) {
+        dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+      if (dark) document.documentElement.classList.add('app-dark');
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
     })();
   </script>
 </head>

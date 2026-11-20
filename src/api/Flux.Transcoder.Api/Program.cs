@@ -97,6 +97,23 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwt["SigningKey"]!))
         };
+
+        // SignalR по WebSocket/SSE не может послать заголовок Authorization и передаёт токен
+        // в query (?access_token=). Без этого negotiate проходит с пользователем, а подключение —
+        // анонимно, и SignalR отвечает 403 (смена пользователя) — остаётся только long polling.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddAuthorization();
 

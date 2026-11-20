@@ -1,89 +1,99 @@
-import {Component, inject, signal, output, OnInit, computed} from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faLink, faSliders, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { form, FormField, pattern, required, submit } from '@angular/forms/signals';
+import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatFormField, MatLabel, MatError, MatHint } from '@angular/material/form-field';
+import { MatInput } from '@angular/material/input';
+import { MatSelect, MatOption } from '@angular/material/select';
+import { MatButton } from '@angular/material/button';
 
 import { ChannelsStore } from './channels.store';
 import { ProfilesStore } from '../profiles/profiles.store';
-import { InputComponent } from '../../shared/ui/input.component';
-import { ButtonComponent } from '../../shared/ui/button.component';
-import { ToastService } from '../../core/toast/toast.service';
-import {SelectComponent} from '../../shared/ui/select.component';
 
+const SOURCE_SCHEME = /^(srt|rtmp|udp):\/\/.+/i;
+
+/** Диалог создания канала (открывается через MatDialog). */
 @Component({
   selector: 'app-create-channel',
-  standalone: true,
-  imports: [FormsModule, FontAwesomeModule, InputComponent, ButtonComponent, SelectComponent],
+  imports: [
+    FormField, RouterLink, MatDialogModule, MatFormField, MatLabel, MatError, MatHint,
+    MatInput, MatSelect, MatOption, MatButton,
+  ],
   template: `
-    <div class="glass rounded-2xl p-6 relative z-20">
-      <h3 class="font-medium text-[rgb(var(--text))] mb-4 flex items-center gap-2">
-        <fa-icon [icon]="faPlus" class="text-[rgb(var(--accent))] text-sm" />
-        Новый канал
-      </h3>
+    <form (submit)="onSubmit($event)" novalidate>
+      <h2 mat-dialog-title>Новый канал</h2>
 
-      <div class="flex flex-col gap-4">
-        <!-- источник через ui-input -->
-        <ui-input
-          label="Источник" [labelIcon]="faLink" [icon]="faLink"
-          placeholder="rtmp://... / srt://... / udp://..."
-          [(value)]="sourceUrl" />
-
-        <!-- профиль -->
-        <div>
-          <ui-select
-            label="Профиль кодирования" [labelIcon]="faSliders"
-            [options]="profileOptions()"
-            placeholder="— выберите профиль —"
-            [(value)]="profileId" />
-
-          @if (profiles.profiles().length === 0) {
-            <p class="text-sm text-amber-400 mt-2">
-              Сначала создайте профиль в разделе «Профили»
-            </p>
+      <mat-dialog-content>
+        <!-- раскладка во внутренней обёртке: стили Material (вне @layer) перекрывают утилиты Tailwind на самом mat-dialog-content -->
+        <div class="flex flex-col gap-2 pt-2">
+        <mat-form-field>
+          <mat-label>Источник</mat-label>
+          <input matInput autocomplete="off" placeholder="srt://host:9000"
+                 [formField]="channelForm.sourceUrl" />
+          <mat-hint>SRT, RTMP или UDP: srt://…, rtmp://…, udp://…</mat-hint>
+          @if (channelForm.sourceUrl().invalid()) {
+            <mat-error>{{ channelForm.sourceUrl().errors()[0]?.message }}</mat-error>
           }
-        </div>
+        </mat-form-field>
 
-        <ui-button
-          class="block self-start"
-          label="Создать канал" [icon]="faPlus"
-          variant="primary" [loading]="saving()"
-          (clicked)="save()" />
-      </div>
-    </div>
+        <mat-form-field>
+          <mat-label>Профиль кодирования</mat-label>
+          <mat-select [formField]="channelForm.profileId">
+            @for (p of profileOptions(); track p.value) {
+              <mat-option [value]="p.value">{{ p.label }}</mat-option>
+            }
+          </mat-select>
+          @if (channelForm.profileId().invalid()) {
+            <mat-error>{{ channelForm.profileId().errors()[0]?.message }}</mat-error>
+          }
+        </mat-form-field>
+
+        @if (profiles.loaded() && profiles.profiles().length === 0) {
+          <div class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-amber-500/15 text-amber-800 dark:text-amber-300">
+            <span class="material-symbols-outlined" aria-hidden="true">info</span>
+            <span>Профилей пока нет —
+              <a routerLink="/profiles" class="underline" mat-dialog-close>создайте профиль</a>.</span>
+          </div>
+        }
+        </div>
+      </mat-dialog-content>
+
+      <mat-dialog-actions align="end">
+        <button matButton type="button" mat-dialog-close>Отмена</button>
+        <button matButton="filled" type="submit" [disabled]="channelForm().submitting()">Создать</button>
+      </mat-dialog-actions>
+    </form>
   `,
 })
 export class CreateChannelComponent implements OnInit {
   private readonly channels = inject(ChannelsStore);
-  readonly profiles = inject(ProfilesStore);
-  private readonly toast = inject(ToastService);
+  private readonly dialogRef = inject(MatDialogRef<CreateChannelComponent>);
+  protected readonly profiles = inject(ProfilesStore);
 
-  readonly created = output<void>();
+  private readonly model = signal({ sourceUrl: '', profileId: '' });
+  protected readonly channelForm = form(this.model, p => {
+    required(p.sourceUrl, { message: 'Укажите адрес источника' });
+    pattern(p.sourceUrl, SOURCE_SCHEME, { message: 'Адрес должен начинаться с srt://, rtmp:// или udp://' });
+    required(p.profileId, { message: 'Выберите профиль' });
+  });
 
-  sourceUrl = signal('');
-  readonly saving = signal(false);
-
-  profileId = signal<string | null>(null);
-  readonly profileOptions = computed(() =>
+  protected readonly profileOptions = computed(() =>
     this.profiles.profiles().map(p => ({
       value: p.profileId,
-      label: `${p.name} (${p.renditions.length} рендишенов)`,
+      label: `${p.name} · ${p.renditions.length} рендишен(ов)`,
     })));
 
-  readonly faLink = faLink;
-  readonly faSliders = faSliders;
-  readonly faPlus = faPlus;
+  ngOnInit(): void {
+    if (!this.profiles.loaded()) this.profiles.loadAll();
+  }
 
-  ngOnInit(): void { this.profiles.loadAll(); }
-
-  save(): void {
-    if (!this.sourceUrl().trim()) { this.toast.error('Укажите источник'); return; }
-    if (!this.profileId()) { this.toast.error('Выберите профиль'); return; }
-
-    this.saving.set(true);
-    this.channels.create({ sourceUrl: this.sourceUrl(), profileId: this.profileId()! });
-    this.sourceUrl.set('');
-    this.profileId.set(null);
-    this.saving.set(false);
-    this.created.emit();
+  onSubmit(event: Event): void {
+    event.preventDefault();
+    submit(this.channelForm, async () => {
+      const { sourceUrl, profileId } = this.model();
+      if (await this.channels.create({ sourceUrl: sourceUrl.trim(), profileId })) {
+        this.dialogRef.close(true);
+      }
+    });
   }
 }
