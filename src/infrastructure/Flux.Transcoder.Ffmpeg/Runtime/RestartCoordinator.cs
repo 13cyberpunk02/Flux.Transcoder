@@ -47,6 +47,9 @@ public sealed class RestartCoordinator(
     /// <summary>Сбросить счётчик, когда канал снова здоров.</summary>
     public void OnHealthy(Guid channelId) => _attempts.TryRemove(channelId, out _);
 
+    /// <summary>Сбросить счётчик при ручном старте/стопе/рестарте пользователем.</summary>
+    public void Reset(Guid channelId) => _attempts.TryRemove(channelId, out _);
+
     private async Task ScheduleRestartAsync(Guid channelId, TimeSpan delay)
     {
         try
@@ -69,6 +72,15 @@ public sealed class RestartCoordinator(
             if (channel is null)
             {
                 logger.LogWarning("Канал {ChannelId} не найден при перезапуске.", channelId);
+                return;
+            }
+
+            // пока ждали backoff, пользователь мог остановить канал — не воскрешаем его
+            if (channel.Status is not (ChannelStatus.Starting or ChannelStatus.Running or ChannelStatus.Degraded))
+            {
+                logger.LogInformation(
+                    "Канал {ChannelId} в статусе {Status} — авто-перезапуск отменён.",
+                    channelId, channel.Status);
                 return;
             }
 
@@ -97,7 +109,7 @@ public sealed class RestartCoordinator(
             var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             var channel = await repo.FirstOrDefaultAsync(new ChannelByIdSpec(channelId));
-            if (channel is not null && channel.Status is not ChannelStatus.Failed)
+            if (channel is { Status: ChannelStatus.Starting or ChannelStatus.Running or ChannelStatus.Degraded })
             {
                 channel.MarkFailed("Источник недоступен, исчерпан лимит перезапусков.");
                 await uow.SaveChangesAsync();

@@ -67,6 +67,7 @@ import {RetentionSettingsComponent} from './retention-settings.component';
                        [disabled]="ch.status === 'Idle' || ch.status === 'Stopped'"
                        (clicked)="onStop(ch.channelId)"/>
             <ui-button label="Удалить" [icon]="faTrash" variant="danger" size="sm"
+                       [disabled]="ch.status !== 'Idle' && ch.status !== 'Stopped' && ch.status !== 'Failed'"
                        (clicked)="onDelete(ch.channelId)"/>
           </div>
         </div>
@@ -157,7 +158,7 @@ import {RetentionSettingsComponent} from './retention-settings.component';
             <ui-input type="datetime-local" [(value)]="archiveFrom"/>
             <ui-button label="Смотреть архив" [icon]="faClockRotateLeft"
                        [variant]="mode() === 'archive' ? 'primary' : 'secondary'"
-                       [disabled]="!archiveFrom" (clicked)="switchToArchive()"/>
+                       [disabled]="!archiveFrom()" (clicked)="switchToArchive()"/>
           </div>
         </div>
       </div>
@@ -246,7 +247,8 @@ export class ChannelDetailComponent implements OnInit {
         this.toast.success('Канал удалён');
         this.router.navigate(['/channels']);
       },
-      error: () => this.toast.error('Не удалось удалить канал'),
+      // сервер отдаёт ProblemDetails: 409 — канал ещё активен
+      error: err => this.toast.error(err?.error?.detail ?? 'Не удалось удалить канал'),
     });
   }
 
@@ -256,7 +258,7 @@ export class ChannelDetailComponent implements OnInit {
   }
 
   switchToArchive(): void {
-    if (!this.archiveFrom) return;
+    if (!this.archiveFrom()) return;   // archiveFrom — signal, без () условие всегда ложно
     this.mode.set('archive');
     this.toast.info('Переключено на архив');
   }

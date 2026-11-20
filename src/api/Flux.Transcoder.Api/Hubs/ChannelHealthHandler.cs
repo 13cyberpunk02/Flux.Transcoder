@@ -28,7 +28,7 @@ public class ChannelHealthHandler
 
         if (channel is null) return;
 
-        if (report.Status == "Healthy" && channel.Status == ChannelStatus.Starting)
+        if (report.Status == "Healthy" && channel.Status is ChannelStatus.Starting or ChannelStatus.Degraded)
         {
             channel.MarkRunning();
             await unitOfWork.SaveChangesAsync(cancellationToken);

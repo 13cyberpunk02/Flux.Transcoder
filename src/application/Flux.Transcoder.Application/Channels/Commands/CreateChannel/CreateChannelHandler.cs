@@ -15,7 +15,7 @@ public static class CreateChannelHandler
         CancellationToken cancellationToken)
     {
         var profile = await profiles.GetByIdAsync(command.ProfileId, cancellationToken)
-                      ?? throw new DomainException($"Профиль декодирования {command.ProfileId} не найдено.");
+                      ?? throw new NotFoundException($"Профиль кодирования {command.ProfileId} не найден.");
 
         var source = new SourceUrl(command.SourceUrl); // валидирует схему, кидает DomainException
         var channel = Channel.Create(source, profile);

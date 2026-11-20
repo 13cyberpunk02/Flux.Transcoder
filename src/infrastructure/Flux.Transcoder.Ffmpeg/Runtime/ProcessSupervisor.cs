@@ -10,19 +10,22 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
 
     public bool IsRunning(Guid channelId) => _processes.ContainsKey(channelId);
 
-    public void Register(Guid channelId, int pid, CancellationTokenSource cts, Process process)
+    public RunningProcess Register(Guid channelId, int pid, CancellationTokenSource cts, Process process)
     {
-        _processes[channelId] = new RunningProcess(
-            channelId, pid, DateTimeOffset.UtcNow, cts, process);
+        var running = new RunningProcess(channelId, pid, DateTimeOffset.UtcNow, cts, process);
+        _processes[channelId] = running;
+        return running;
     }
 
-    public void Unregister(Guid channelId)
+    /// <summary>
+    /// Убирает запись, только если она всё ещё указывает на ЭТОТ процесс.
+    /// Иначе запоздавший Exited старого процесса удалил бы запись нового (после рестарта).
+    /// Сам Process освобождает обработчик Exited.
+    /// </summary>
+    public void Unregister(RunningProcess running)
     {
-        if (_processes.TryRemove(channelId, out var proc))
-        {
-            proc.Cts.Dispose();
-            proc.Process.Dispose();
-        }
+        if (_processes.TryRemove(new KeyValuePair<Guid, RunningProcess>(running.ChannelId, running)))
+            running.Cts.Dispose();
     }
 
     public void Stop(Guid channelId)
@@ -32,16 +35,19 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
             proc.IntentionalStop = true;
             logger.LogInformation(
                 "Stopping channel {ChannelId} (pid {Pid})", channelId, proc.ProcessId);
-            proc.Cts.Cancel();
+            try
+            {
+                proc.Cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // запись уже снята параллельно — процесс завершён
+            }
         }
     }
 
     public RunningProcess? Get(Guid channelId) =>
         _processes.GetValueOrDefault(channelId);
-    
-    /// <summary>Проверить, был ли стоп намеренным (для обработчика Exited).</summary>
-    public bool WasIntentionalStop(Guid channelId) =>
-        _processes.TryGetValue(channelId, out var proc) && proc.IntentionalStop;
 
     public IReadOnlyCollection<RunningProcess> All() => _processes.Values.ToList();
 }

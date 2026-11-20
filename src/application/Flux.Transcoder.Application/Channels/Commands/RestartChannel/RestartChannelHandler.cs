@@ -18,7 +18,11 @@ public class RestartChannelHandler
     {
         var channel = await channels.FirstOrDefaultAsync(
                           new ChannelByIdSpec(request.ChannelId), cancellationToken)
-                      ?? throw new DomainException($"Канал с Id {request.ChannelId} не найден.");
+                      ?? throw new NotFoundException($"Канал с Id {request.ChannelId} не найден.");
+
+        // * -> Starting: иначе после рестарта из Failed канал навсегда остался бы Failed
+        channel.Restart();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         await bus.PublishAsync(new RestartChannelCommand(channel.Id));
     }

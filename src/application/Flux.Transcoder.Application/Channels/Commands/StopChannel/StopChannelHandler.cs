@@ -18,7 +18,7 @@ public class StopChannelHandler
     {
         var channel = await channels.FirstOrDefaultAsync(
                           new ChannelByIdSpec(request.ChannelId), cancellationToken)
-                      ?? throw new DomainException($"Канал с Id {request.ChannelId} не найден.");
+                      ?? throw new NotFoundException($"Канал с Id {request.ChannelId} не найден.");
 
         channel.Stop();
         await unitOfWork.SaveChangesAsync(cancellationToken);

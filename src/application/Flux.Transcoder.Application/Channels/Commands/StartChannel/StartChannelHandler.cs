@@ -17,7 +17,7 @@ public class StartChannelHandler
     {
         var channel = await channels.FirstOrDefaultAsync(
                           new ChannelByIdSpec(request.ChannelId), cancellationToken)
-                      ?? throw new DomainException($"Channel {request.ChannelId} not found.");
+                      ?? throw new NotFoundException($"Канал с Id {request.ChannelId} не найден.");
 
         channel.Start();                                  // Idle -> Starting
         await unitOfWork.SaveChangesAsync(cancellationToken);

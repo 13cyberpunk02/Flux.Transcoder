@@ -7,6 +7,12 @@ namespace Flux.Transcoder.Ffmpeg.Encoding;
 
 public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
 {
+    /// <summary>
+    /// Рабочая папка процесса ffmpeg. Все пути в аргументах строятся относительно неё —
+    /// так в tee-спецификации нет двоеточия от "D:" (из-за него tee падал с EINVAL).
+    /// </summary>
+    public string WorkingDirectory => options.SegmentRoot;
+
     /// <summary>Папка live-плейлиста и его сегментов (короткое скользящее окно).</summary>
     public string LiveDirectory(Guid channelId) =>
         Path.Combine(options.SegmentRoot, channelId.ToString(), "live");
@@ -21,55 +27,56 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
             .OrderByDescending(r => r.Width * r.Height)
             .First();
 
-        var liveDir = LiveDirectory(channel.Id);
-        var archiveDir = ArchiveDirectory(channel.Id);
-        Directory.CreateDirectory(liveDir);
-        Directory.CreateDirectory(archiveDir);
+        Directory.CreateDirectory(LiveDirectory(channel.Id));
+        Directory.CreateDirectory(ArchiveDirectory(channel.Id));
 
-        var liveSegments    = ToFfmpegPath(Path.Combine(liveDir, "seg_%d.ts"));
-        var livePlaylist    = ToFfmpegPath(Path.Combine(liveDir, "live.m3u8"));
-        var archiveSegments = ToFfmpegPath(
-            Path.Combine(archiveDir, "%Y-%m-%d", "%H", "seg_%Y%m%d_%H%M%S.ts"));
-        var archivePlaylist = ToFfmpegPath(Path.Combine(archiveDir, "current.m3u8"));
+        // относительные пути (от WorkingDirectory), всегда через '/'
+        var id = channel.Id.ToString();
+        var liveSegments    = $"{id}/live/seg_%d.ts";
+        var livePlaylist    = $"{id}/live/live.m3u8";
+        var archiveSegments = $"{id}/archive/%Y-%m-%d/%H/seg_%Y%m%d_%H%M%S.ts";
+        var archivePlaylist = $"{id}/archive/current.m3u8";
 
         var seg = options.HlsTimeSeconds.ToString(CultureInfo.InvariantCulture);
+        var liveListSize = options.LiveListSize.ToString(CultureInfo.InvariantCulture);
         var codec = CodecName(rendition.Codec);
 
-        var args = new List<string>
-        {
+        // Один энкод -> tee -> два HLS-муксера (live + archive).
+        // Раньше было два обычных выхода подряд: параметры кодирования (-c:v, -b:v, -vf, -g)
+        // в ffmpeg применяются только к СЛЕДУЮЩЕМУ выходу, поэтому архив кодировался
+        // второй раз дефолтным libx264 в исходном разрешении.
+        var live =
+            $"[f=hls:hls_time={seg}:hls_list_size={liveListSize}" +
+            ":hls_flags=delete_segments+append_list+independent_segments+omit_endlist" +
+            $":hls_segment_filename={liveSegments}]{livePlaylist}";
+
+        var archive =
+            $"[f=hls:hls_time={seg}:hls_list_size=6:strftime=1:strftime_mkdir=1" +
+            ":hls_flags=append_list+independent_segments+program_date_time" +
+            $":hls_segment_filename={archiveSegments}]{archivePlaylist}";
+
+        return
+        [
             "-hide_banner",
             "-loglevel", "info",
             "-i", channel.Source.Value,
 
+            "-map", "0:v:0",
+            "-map", "0:a:0?",   // аудио может отсутствовать
+
             "-vf", $"scale=w={rendition.Width}:h={rendition.Height}",
             "-c:v", codec,
             "-b:v", $"{rendition.BitrateKbps}k",
+            // ключевой кадр ровно на границе сегмента — сегменты строго по hls_time
+            "-force_key_frames", $"expr:gte(t,n_forced*{seg})",
             "-c:a", "aac",
             "-b:a", "128k",
-            "-g", "48",
 
             "-progress", "pipe:1",
 
-            // ВЫХОД 1 — LIVE
-            "-f", "hls",
-            "-hls_time", seg,
-            "-hls_list_size", options.LiveListSize.ToString(CultureInfo.InvariantCulture),
-            "-hls_flags", "delete_segments+append_list+independent_segments+omit_endlist",
-            "-hls_segment_filename", liveSegments,
-            livePlaylist,
-
-            // ВЫХОД 2 — АРХИВ
-            "-f", "hls",
-            "-hls_time", seg,
-            "-hls_list_size", "6",
-            "-strftime", "1",
-            "-strftime_mkdir", "1",
-            "-hls_flags", "append_list+independent_segments+program_date_time",
-            "-hls_segment_filename", archiveSegments,
-            archivePlaylist
-        };
-
-        return args;
+            "-f", "tee",
+            $"{live}|{archive}"
+        ];
     }
 
     private static string CodecName(EncoderType encoder) => encoder switch
@@ -79,6 +86,4 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
         EncoderType.Qsv   => "h264_qsv",
         _ => "libx264"
     };
-
-    private static string ToFfmpegPath(string path) => path.Replace('\\', '/');
 }

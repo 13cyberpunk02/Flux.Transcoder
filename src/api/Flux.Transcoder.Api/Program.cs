@@ -119,6 +119,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// схема БД (включая метрики TimescaleDB) — до сидинга, иначе на чистой базе seeder падает
+await using (var scope = app.Services.CreateAsyncScope())
+    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+
 await DbSeeder.SeedAdminAsync(app.Services);
 app.MapHub<ChannelsHub>("/hubs/channels");
 

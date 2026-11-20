@@ -19,29 +19,38 @@ public sealed class ProcessReaperService(
         {
             foreach (var proc in supervisor.All())
             {
-                // процесс уже умер, но запись висит — подчищаем
-                if (proc.Process.HasExited)
+                try
                 {
-                    logger.LogWarning(
-                        "Процесс уже умер но запись висит для канала с Id {ChannelId} (pid {Pid})",
-                        proc.ChannelId, proc.ProcessId);
-                    supervisor.Unregister(proc.ChannelId);
-                    continue;
-                }
-                
-                var age = DateTimeOffset.UtcNow - proc.StartedAt;
-                if (age < TimeSpan.FromSeconds(20))
-                    continue;
+                    // процесс уже умер, но запись висит — подчищаем
+                    if (proc.HasExited)
+                    {
+                        logger.LogWarning(
+                            "Процесс уже умер но запись висит для канала с Id {ChannelId} (pid {Pid})",
+                            proc.ChannelId, proc.ProcessId);
+                        supervisor.Unregister(proc);
+                        continue;
+                    }
 
-                if (health.Check(proc.ChannelId) == HealthState.Stalled)
-                {
-                    logger.LogWarning(
-                        "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
-                    restartCoordinator.OnStalled(proc.ChannelId);
+                    var age = DateTimeOffset.UtcNow - proc.StartedAt;
+                    if (age < TimeSpan.FromSeconds(20))
+                        continue;
+
+                    var state = health.Check(proc.ChannelId);
+                    if (state == HealthState.Stalled)
+                    {
+                        logger.LogWarning(
+                            "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
+                        restartCoordinator.OnStalled(proc.ChannelId);
+                    }
+                    else if (state == HealthState.Healthy)
+                    {
+                        restartCoordinator.OnHealthy(proc.ChannelId);
+                    }
                 }
-                else if (health.Check(proc.ChannelId) == HealthState.Healthy)
+                catch (Exception ex)
                 {
-                    restartCoordinator.OnHealthy(proc.ChannelId);
+                    // исключение в BackgroundService остановило бы весь воркер
+                    logger.LogError(ex, "Ошибка проверки канала {ChannelId}", proc.ChannelId);
                 }
             }
         }

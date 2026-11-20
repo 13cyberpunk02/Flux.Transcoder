@@ -3,6 +3,8 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: flux_transcoder_postgres_db
     restart: always
+    # без предзагрузки расширения: "extension must be preloaded"
+    command: postgres -c shared_preload_libraries=timescaledb
     environment:
       POSTGRES_USER: dev_user
       POSTGRES_PASSWORD: dev_pass12345
@@ -33,8 +35,18 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - D:/fluxcast/storage:/srv/hls:ro
+      # для NAS: вместо строки выше — - hls_storage:/srv/hls:ro (см. volume ниже)
     restart: always
-  
+
 volumes:
   postgres_data:
-  rabbitmq_data:   
+  rabbitmq_data:
+
+  # Шара NAS напрямую по SMB (диск Z: из Windows в WSL2/Docker не пробрасывается).
+  # Значения — в deploy/.env (не коммитить): NAS_HOST, NAS_SHARE, NAS_USER, NAS_PASSWORD.
+  # hls_storage:
+  #   driver: local
+  #   driver_opts:
+  #     type: cifs
+  #     device: "//${NAS_HOST}/${NAS_SHARE}"
+  #     o: "username=${NAS_USER},password=${NAS_PASSWORD},vers=3.0,ro"

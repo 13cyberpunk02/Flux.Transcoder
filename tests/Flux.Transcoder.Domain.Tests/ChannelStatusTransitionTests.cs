@@ -106,6 +106,76 @@ public class ChannelStatusTransitionTests
         ch.Status.Should().Be(ChannelStatus.Stopped);
     }
 
+    [Fact]
+    public void Start_after_stop_is_allowed()
+    {
+        var ch = NewChannel();
+        ch.Start();
+        ch.Stop();
+        ch.Start();
+
+        ch.Status.Should().Be(ChannelStatus.Starting);
+    }
+
+    [Fact]
+    public void Start_after_failed_is_allowed()
+    {
+        var ch = NewChannel();
+        ch.Start();
+        ch.MarkFailed("boom");
+        ch.Start();
+
+        ch.Status.Should().Be(ChannelStatus.Starting);
+    }
+
+    [Fact]
+    public void Start_from_running_throws_invalid_transition()
+    {
+        var ch = NewChannel();
+        ch.Start();
+        ch.MarkRunning();
+
+        var act = () => ch.Start();
+        act.Should().Throw<InvalidStateTransitionException>();
+    }
+
+    [Fact]
+    public void Restart_from_failed_moves_to_starting_and_can_become_running()
+    {
+        var ch = NewChannel();
+        ch.Start();
+        ch.MarkFailed("boom");
+        ch.Restart();
+        ch.MarkRunning();
+
+        ch.Status.Should().Be(ChannelStatus.Running);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Restart_from_idle_or_stopped_throws(bool stopFirst)
+    {
+        var ch = NewChannel();
+        if (stopFirst) { ch.Start(); ch.Stop(); }
+
+        var act = () => ch.Restart();
+        act.Should().Throw<InvalidStateTransitionException>();
+    }
+
+    [Fact]
+    public void Delete_is_allowed_only_for_inactive_channel()
+    {
+        var ch = NewChannel();
+        ch.Invoking(c => c.EnsureCanBeDeleted()).Should().NotThrow();
+
+        ch.Start();
+        ch.Invoking(c => c.EnsureCanBeDeleted()).Should().Throw<InvalidStateTransitionException>();
+
+        ch.Stop();
+        ch.Invoking(c => c.EnsureCanBeDeleted()).Should().NotThrow();
+    }
+
     [Theory]
     [InlineData("srt://host:9000")]
     [InlineData("rtmp://host/app")]

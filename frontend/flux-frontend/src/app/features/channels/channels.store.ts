@@ -56,14 +56,14 @@ export class ChannelsStore {
   start(id: string): void {
     this.api.start(id).subscribe({
       next: () => { this.patchStatus(id, 'Starting'); this.toast.info('Канал запускается'); },
-      error: () => this.toast.error('Не удалось запустить канал'),
+      error: err => this.toast.error(err?.error?.detail ?? 'Не удалось запустить канал'),
     });
   }
 
   stop(id: string): void {
     this.api.stop(id).subscribe({
       next: () => { this.patchStatus(id, 'Stopped'); this.toast.info('Канал остановлен'); },
-      error: () => this.toast.error('Не удалось остановить канал'),
+      error: err => this.toast.error(err?.error?.detail ?? 'Не удалось остановить канал'),
     });
   }
 
@@ -73,16 +73,17 @@ export class ChannelsStore {
         this.patchStatus(id, 'Starting');
         this.toast.info('Канал перезапущен');
       },
-      error: () => this.toast.error('Не удалось перезапустить канал'),
+      error: err => this.toast.error(err?.error?.detail ?? 'Не удалось перезапустить канал'),
     });
   }
 
   delete(id: string): void {
     this.api.delete(id).subscribe({
       next: () => {
+        this._channels.update(list => list.filter(c => c.channelId !== id));
         this.toast.success('Канал удалён');
       },
-      error: () => this.toast.error('Не удалось удалить канал'),
+      error: err => this.toast.error(err?.error?.detail ?? 'Не удалось удалить канал'),
     });
   }
 

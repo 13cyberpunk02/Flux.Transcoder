@@ -2,6 +2,7 @@
 using Flux.Transcoder.Application.Specifications;
 using Flux.Transcoder.Contracts.Commands;
 using Flux.Transcoder.Domain.Channels;
+using Flux.Transcoder.Ffmpeg.Runtime;
 
 namespace Flux.Transcoder.Worker.Handlers;
 
@@ -11,6 +12,7 @@ public sealed class StartChannelCommandHandler
         StartChannelCommand command,
         IReadRepository<Channel> channels,
         IStreamOrchestrator orchestrator,
+        RestartCoordinator restartCoordinator,
         ILogger<StartChannelCommandHandler>? logger,
         CancellationToken cancellationToken)
     {
@@ -24,6 +26,7 @@ public sealed class StartChannelCommandHandler
         }
 
         logger?.LogInformation("Запуск процесса ffmpeg для канала с Id {ChannelId}", channel.Id);
+        restartCoordinator.Reset(channel.Id);   // ручной старт — счётчик авто-перезапусков с нуля
         await orchestrator.StartAsync(channel, cancellationToken);
     }
 }

@@ -1,4 +1,5 @@
 using Flux.Transcoder.Application.Channels.Commands.CreateChannel;
+using Flux.Transcoder.Application.Channels.Commands.DeleteChannel;
 using Flux.Transcoder.Application.Channels.Commands.RestartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StartChannel;
 using Flux.Transcoder.Application.Channels.Commands.StopChannel;
@@ -61,6 +62,13 @@ public static class ChannelEndpoints
         return Results.Accepted($"/api/channels/{id}");
     }
     
+    [WolverineDelete("/api/channels/{id:guid}")]
+    public static async Task<IResult> Delete(Guid id, IMessageBus bus)
+    {
+        await bus.InvokeAsync(new DeleteChannelRequest(id));
+        return Results.NoContent();
+    }
+
     [WolverinePut("/api/channels/{id:guid}/retention")]
     public static async Task<IResult> UpdateRetention(
         Guid id, UpdateRetentionRequest request, IMessageBus bus)
