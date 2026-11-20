@@ -23,12 +23,12 @@
   "private": true,
   "packageManager": "npm@11.7.0",
   "dependencies": {
-    "@angular/common": "^22.0.6",
-    "@angular/compiler": "^22.0.6",
-    "@angular/core": "^22.0.6",
-    "@angular/forms": "^22.0.6",
-    "@angular/platform-browser": "^22.0.6",
-    "@angular/router": "^22.0.6",
+    "@angular/common": "^22.3.0",
+    "@angular/compiler": "^22.3.0",
+    "@angular/core": "^22.3.0",
+    "@angular/forms": "^22.3.0",
+    "@angular/platform-browser": "^22.3.0",
+    "@angular/router": "^22.3.0",
     "@fortawesome/angular-fontawesome": "^5.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.3.0",
     "@microsoft/signalr": "^10.0.0",
@@ -42,12 +42,12 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^22.0.6",
-    "@angular/cli": "^22.0.6",
-    "@angular/compiler-cli": "^22.0.6",
-    "jsdom": "^27.1.0",
+    "@angular/build": "^22.3.0",
+    "@angular/cli": "^22.3.0",
+    "@angular/compiler-cli": "^22.3.0",
+    "jsdom": "^31.0.1",
     "postcss": "^8.5.3",
     "typescript": "~6.0.3",
-    "vitest": "^4.0.8"
+    "vitest": "^5.1.1"
   }
 }
