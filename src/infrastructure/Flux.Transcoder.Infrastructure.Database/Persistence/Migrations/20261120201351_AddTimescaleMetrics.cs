@@ -68,25 +68,52 @@ namespace Flux.Transcoder.Infrastructure.Database.Persistence.Migrations
                 WITH NO DATA;
                 """);
 
+            // Политики добавляем, только если у объекта ещё НЕТ политики этого типа.
+            // if_not_exists => TRUE пропускает лишь политику с теми же параметрами:
+            // при других параметрах TimescaleDB пытается добавить вторую и падает
+            // с "refresh interval overlaps with an existing continuous aggregate policy".
+            // В timescaledb_information.jobs.hypertable_name для cagg лежит имя самого view.
             migrationBuilder.Sql("""
-                SELECT add_continuous_aggregate_policy('channel_metrics_1m',
-                    start_offset      => INTERVAL '2 hours',
-                    end_offset        => INTERVAL '1 minute',
-                    schedule_interval => INTERVAL '1 minute',
-                    if_not_exists     => TRUE);
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                                   WHERE proc_name = 'policy_refresh_continuous_aggregate'
+                                     AND hypertable_name = 'channel_metrics_1m') THEN
+                        PERFORM add_continuous_aggregate_policy('channel_metrics_1m',
+                            start_offset      => INTERVAL '10 minutes',
+                            end_offset        => INTERVAL '1 minute',
+                            schedule_interval => INTERVAL '1 minute');
+                    END IF;
 
-                SELECT add_continuous_aggregate_policy('channel_metrics_1h',
-                    start_offset      => INTERVAL '1 day',
-                    end_offset        => INTERVAL '1 hour',
-                    schedule_interval => INTERVAL '30 minutes',
-                    if_not_exists     => TRUE);
-                """);
+                    IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                                   WHERE proc_name = 'policy_refresh_continuous_aggregate'
+                                     AND hypertable_name = 'channel_metrics_1h') THEN
+                        PERFORM add_continuous_aggregate_policy('channel_metrics_1h',
+                            start_offset      => INTERVAL '3 hours',
+                            end_offset        => INTERVAL '1 hour',
+                            schedule_interval => INTERVAL '30 minutes');
+                    END IF;
 
-            // хранение: сырые 2 дня, поминутные 14 дней, почасовые 90 дней
-            migrationBuilder.Sql("""
-                SELECT add_retention_policy('channel_metrics',    INTERVAL '2 days',  if_not_exists => TRUE);
-                SELECT add_retention_policy('channel_metrics_1m', INTERVAL '14 days', if_not_exists => TRUE);
-                SELECT add_retention_policy('channel_metrics_1h', INTERVAL '90 days', if_not_exists => TRUE);
+                    -- хранение: сырые 2 дня, поминутные 14 дней, почасовые 90 дней
+                    IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                                   WHERE proc_name = 'policy_retention'
+                                     AND hypertable_name = 'channel_metrics') THEN
+                        PERFORM add_retention_policy('channel_metrics', INTERVAL '2 days');
+                    END IF;
+
+                    IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                                   WHERE proc_name = 'policy_retention'
+                                     AND hypertable_name = 'channel_metrics_1m') THEN
+                        PERFORM add_retention_policy('channel_metrics_1m', INTERVAL '14 days');
+                    END IF;
+
+                    IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                                   WHERE proc_name = 'policy_retention'
+                                     AND hypertable_name = 'channel_metrics_1h') THEN
+                        PERFORM add_retention_policy('channel_metrics_1h', INTERVAL '90 days');
+                    END IF;
+                END
+                $$;
                 """);
         }
 
