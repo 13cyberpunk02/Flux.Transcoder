@@ -15,6 +15,12 @@ public sealed class FfmpegOptions
     /// <summary> Продолжительность каждого сегмента записи в секундах </summary>
     public int HlsTimeSeconds { get; set; } = 4;
 
+    /// <summary>
+    /// Сколько ждать первый сегмент. Не появился — запуск считается неудачным и повторяется,
+    /// после исчерпания попыток канал уходит в Failed.
+    /// </summary>
+    public int StartupTimeoutSeconds { get; set; } = 30;
+
     /// <summary>Размер live-окна в плейлисте (число сегментов).</summary>
     public int LiveListSize { get; set; } = 6;
 }

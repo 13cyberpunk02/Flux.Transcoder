@@ -6,6 +6,7 @@ namespace Flux.Transcoder.Ffmpeg.Runtime;
 
 public sealed class RunningProcess(
     Guid channelId,
+    int revision,
     int processId,
     DateTimeOffset startedAt,
     Process process)
@@ -14,6 +15,10 @@ public sealed class RunningProcess(
     private int _stopRequested;
 
     public Guid ChannelId { get; } = channelId;
+
+    /// <summary>Ревизия запуска канала (Channel.RunRevision), для которой запущен процесс.</summary>
+    public int Revision { get; } = revision;
+
     public int ProcessId { get; } = processId;
     public DateTimeOffset StartedAt { get; } = startedAt;
     public Process Process { get; } = process;
@@ -29,7 +34,7 @@ public sealed class RunningProcess(
 
     internal void MarkExited() => _exited.TrySetResult();
 
-    /// <summary>true, если процесс останавливаем мы сами (пользователь или reaper).</summary>
+    /// <summary>true, если процесс останавливаем мы сами (пользователь, reaper или выключение воркера).</summary>
     public bool IntentionalStop => Volatile.Read(ref _stopRequested) == 1;
 
     /// <summary>true только у первого вызвавшего — он и останавливает процесс.</summary>

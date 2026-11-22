@@ -26,7 +26,16 @@ public sealed class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .HasConversion<string>()          // enum -> текст
             .HasColumnName("status")
             .HasMaxLength(32)
+            // статус пишут и API, и воркер: UPDATE проходит, только если он не менялся с момента чтения
+            .IsConcurrencyToken()
             .IsRequired();
+
+        builder.Property(c => c.RunRevision)
+            .HasColumnName("run_revision")
+            .IsConcurrencyToken()   // ловит и Failed -> Restart -> Starting, где одного статуса мало
+            .IsRequired();
+
+        builder.Ignore(c => c.IsInactive);
 
         // связь Channel -> EncodingProfile
         builder.HasOne(c => c.Profile)

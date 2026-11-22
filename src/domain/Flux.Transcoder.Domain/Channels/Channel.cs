@@ -11,6 +11,12 @@ public sealed class Channel : AggregateRoot
     public ChannelStatus Status { get; private set; }
     public RetentionPolicy Retention { get; private set; } = null!;
 
+    /// <summary>
+    /// Номер намерения пользователя: растёт на Start, Stop и Restart. Воркер держит процесс именно этой
+    /// ревизии, а отчёты прежних процессов не могут изменить статус.
+    /// </summary>
+    public int RunRevision { get; private set; }
+
     private Channel() { }
 
     private Channel(Guid id, SourceUrl source, EncodingProfile profile, RetentionPolicy retention) : base(id)
@@ -38,6 +44,7 @@ public sealed class Channel : AggregateRoot
             throw new InvalidStateTransitionException($"Невозможно запустить канал из статуса {Status}.");
 
         Status = ChannelStatus.Starting;
+        RunRevision++;
         Raise(new ChannelStarted(Id));
     }
 
@@ -52,6 +59,7 @@ public sealed class Channel : AggregateRoot
             throw new InvalidStateTransitionException($"Невозможно перезапустить канал из статуса {Status}.");
 
         Status = ChannelStatus.Starting;
+        RunRevision++;
         Raise(new ChannelStarted(Id));
     }
 
@@ -85,6 +93,7 @@ public sealed class Channel : AggregateRoot
             throw new InvalidStateTransitionException($"Невозможно изменить статус канала со статуса {Status}.");
 
         Status = ChannelStatus.Stopped;
+        RunRevision++;
         Raise(new ChannelStopped(Id));
     }
 

@@ -176,6 +176,42 @@ public class ChannelStatusTransitionTests
         ch.Invoking(c => c.EnsureCanBeDeleted()).Should().NotThrow();
     }
 
+    [Fact]
+    public void Every_user_intent_increases_run_revision()
+    {
+        var ch = NewChannel();
+        ch.RunRevision.Should().Be(0);
+
+        ch.Start();
+        ch.RunRevision.Should().Be(1);
+        ch.Restart();
+        ch.RunRevision.Should().Be(2);
+        ch.Stop();
+        ch.RunRevision.Should().Be(3);
+    }
+
+    [Fact]
+    public void System_transitions_do_not_change_run_revision()
+    {
+        var ch = NewChannel();
+        ch.Start();
+
+        ch.MarkRunning();
+        ch.MarkFailed("boom");
+
+        ch.RunRevision.Should().Be(1);
+    }
+
+    [Fact]
+    public void Rejected_transition_does_not_change_run_revision()
+    {
+        var ch = NewChannel();
+
+        ch.Invoking(c => c.Stop()).Should().Throw<InvalidStateTransitionException>();
+
+        ch.RunRevision.Should().Be(0);
+    }
+
     [Theory]
     [InlineData("srt://host:9000")]
     [InlineData("rtmp://host/app")]

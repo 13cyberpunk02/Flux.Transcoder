@@ -1,27 +1,17 @@
-﻿using Flux.Transcoder.Application.Abstractions;
-using Flux.Transcoder.Application.Specifications;
 using Flux.Transcoder.Contracts.Commands;
-using Flux.Transcoder.Domain.Channels;
+using Flux.Transcoder.Worker.Services;
 
 namespace Flux.Transcoder.Worker.Handlers;
 
+/// <summary>Команда — только сигнал: что делать с каналом, реконсилер читает из БД.</summary>
 public sealed class RestartChannelCommandHandler
 {
-    public static async Task HandleAsync(
+    public static void Handle(
         RestartChannelCommand command,
-        IReadRepository<Channel> channels,
-        IStreamOrchestrator orchestrator,
-        ILogger<RestartChannelCommandHandler>? logger,
-        CancellationToken cancellationToken)
+        ChannelReconciler reconciler,
+        ILogger<RestartChannelCommandHandler> logger)
     {
-        logger?.LogInformation("Перезапускаю процесс ffmpeg для канала с Id {ChannelId}", command.ChannelId);
-
-        await orchestrator.StopAsync(command.ChannelId, cancellationToken);
-
-        var channel = await channels.FirstOrDefaultAsync(
-            new ChannelByIdSpec(command.ChannelId), cancellationToken);
-
-        if (channel is not null)
-            await orchestrator.StartAsync(channel, cancellationToken);
+        logger.LogInformation("RestartChannelCommand для канала с Id {ChannelId}", command.ChannelId);
+        reconciler.Trigger(command.ChannelId);
     }
 }

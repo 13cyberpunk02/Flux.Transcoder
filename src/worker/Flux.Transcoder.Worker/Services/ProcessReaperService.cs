@@ -1,4 +1,6 @@
-﻿using Flux.Transcoder.Ffmpeg.Runtime;
+﻿using Flux.Transcoder.Ffmpeg.Configuration;
+using Flux.Transcoder.Ffmpeg.Runtime;
+using Microsoft.Extensions.Options;
 
 namespace Flux.Transcoder.Worker.Services;
 
@@ -6,10 +8,12 @@ public sealed class ProcessReaperService(
     ProcessSupervisor supervisor,
     SegmentHealthCheck health,
     RestartCoordinator restartCoordinator,
+    IOptions<FfmpegOptions> options,
     ILogger<ProcessReaperService> logger)
     : BackgroundService
 {
     private readonly TimeSpan _interval = TimeSpan.FromSeconds(10);
+    private readonly TimeSpan _startupTimeout = TimeSpan.FromSeconds(options.Value.StartupTimeoutSeconds);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -31,6 +35,7 @@ public sealed class ProcessReaperService(
                         logger.LogWarning(
                             "Процесс уже умер но запись висит для канала с Id {ChannelId} (pid {Pid})",
                             proc.ChannelId, proc.ProcessId);
+                        restartCoordinator.OnFailure(proc.ChannelId, proc.Revision);
                         supervisor.Unregister(proc);
                         continue;
                     }
@@ -39,17 +44,25 @@ public sealed class ProcessReaperService(
                     if (age < TimeSpan.FromSeconds(20))
                         continue;
 
-                    var state = health.Check(proc.ChannelId);
-                    if (state == HealthState.Stalled)
+                    var state = health.Check(proc.ChannelId, proc.StartedAt);
+                    var noFirstSegment = state == HealthState.Unknown && age >= _startupTimeout;
+
+                    if (state == HealthState.Stalled || noFirstSegment)
                     {
-                        logger.LogWarning(
-                            "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
+                        if (noFirstSegment)
+                            logger.LogWarning(
+                                "Канал {ChannelId}: первый сегмент не появился за {Timeout:g}", proc.ChannelId, _startupTimeout);
+                        else
+                            logger.LogWarning(
+                                "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
+
+                        // сначала пауза, потом Stop: иначе сверка успела бы перезапустить без backoff
+                        restartCoordinator.OnFailure(proc.ChannelId, proc.Revision);
                         _ = supervisor.Stop(proc);   // выхода не ждём: обход остальных каналов не задерживается
-                        restartCoordinator.OnStalled(proc.ChannelId);
                     }
                     else if (state == HealthState.Healthy)
                     {
-                        restartCoordinator.OnHealthy(proc.ChannelId);
+                        restartCoordinator.OnHealthy(proc.ChannelId, proc.Revision);
                     }
                 }
                 catch (Exception ex)

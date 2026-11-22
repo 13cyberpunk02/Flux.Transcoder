@@ -7,4 +7,5 @@ public sealed record ChannelHealthReport(
     double OutputBitrateKbps,
     int DroppedFrames,
     double UptimeSeconds,
-    DateTimeOffset ReportedAt); 
+    DateTimeOffset ReportedAt,
+    int RunRevision = 0);

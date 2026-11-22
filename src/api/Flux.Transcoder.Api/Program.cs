@@ -10,6 +10,7 @@ using System.Text;
 using Flux.Transcoder.Api.Archive;
 using Flux.Transcoder.Api.Extensions;
 using Flux.Transcoder.Api.Hubs;
+using Flux.Transcoder.Api.Messaging;
 using Flux.Transcoder.Api.Middleware;
 using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Contracts.Commands;
@@ -17,8 +18,11 @@ using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
+using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
+using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,11 +48,12 @@ builder.Services.AddValidatorsFromAssembly(
     ServiceLifetime.Singleton);
 
 builder.Services.AddSignalR();
+builder.Services.AddScoped<ITransactionalPublisher, OutboxPublisher>();
 
 //Сервис которая строит архивные передачи потока.
 builder.Services.AddSingleton<ArchivePlaylistBuilder>();
 
-// Wolverine: in-process медиатор + RabbitMQ-транспорт (только публикация)
+// Wolverine: in-process медиатор + RabbitMQ-транспорт + outbox в PostgreSQL
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
@@ -62,7 +67,18 @@ builder.Host.UseWolverine(options =>
     options.UseRabbitMq(new Uri(rabbit))
         .AutoProvision();
 
+    // Outbox: команда пишется в одной транзакции с каналом и досылается после сбоя брокера или API.
+    // Solo — API один (у SignalR нет backplane): недосланное подхватывается сразу при старте.
+    options.PersistMessagesWithPostgresql(
+        builder.Configuration.GetConnectionString("flux_transcoder_db")!, "wolverine");
+    options.UseEntityFrameworkCoreTransactions();
+    options.Durability.Mode = DurabilityMode.Solo;
+
+    // статус пишут пользователь и health: проигравший перечитывает канал и решает заново
+    options.Policies.OnException<DbUpdateConcurrencyException>().RetryTimes(3);
+
     // 2) service location для EF
+    options.CodeGeneration.AlwaysUseServiceLocationFor<ITransactionalPublisher>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<IUnitOfWork>();
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IRepository<>));
     options.CodeGeneration.AlwaysUseServiceLocationFor(typeof(IReadRepository<>));
@@ -71,9 +87,9 @@ builder.Host.UseWolverine(options =>
 
     // 3) ПОТОМ маршруты
     // API ПУБЛИКУЕТ команды воркеру
-    options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
-    options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
-    options.PublishMessage<RestartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands);
+    options.PublishMessage<StartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands).UseDurableOutbox();
+    options.PublishMessage<StopChannelCommand>().ToRabbitQueue(Queues.WorkerCommands).UseDurableOutbox();
+    options.PublishMessage<RestartChannelCommand>().ToRabbitQueue(Queues.WorkerCommands).UseDurableOutbox();
     
     options.Discovery.IncludeAssembly(typeof(ChannelHealthHandler).Assembly);
     // API СЛУШАЕТ health от воркера

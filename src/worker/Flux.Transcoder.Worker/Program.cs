@@ -1,12 +1,12 @@
 using Flux.Transcoder.Contracts.Events;
 using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Ffmpeg;
-using Flux.Transcoder.Ffmpeg.Runtime;
 using Flux.Transcoder.Infrastructure.Database;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
 using Flux.Transcoder.Worker.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Serilog.Events;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
@@ -15,6 +15,7 @@ var builder = Host.CreateApplicationBuilder(args);
 // Serilog
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning) // сверка ходит в БД постоянно
     .Enrich.FromLogContext()
     .WriteTo.Console()
     .CreateLogger();
@@ -25,8 +26,6 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // FFmpeg-оркестрация: IStreamOrchestrator, ProcessSupervisor, ProgressParser и т.д.
 builder.Services.AddFfmpeg(builder.Configuration);
-builder.Services.AddSingleton<RestartCoordinator>();
-builder.Services.AddSingleton<RestartPolicy>();
 
 // Wolverine: СЛУШАЕТ очередь команд
 builder.UseWolverine(opts =>
@@ -50,11 +49,18 @@ builder.UseWolverine(opts =>
 
     // воркер ПУБЛИКУЕТ health в свою очередь
     opts.PublishMessage<ChannelHealthReport>().ToRabbitQueue(Queues.HealthReports);
+    opts.PublishMessage<ChannelStateChanged>().ToRabbitQueue(Queues.HealthReports);
 });
 
-// Фоновые сервисы
+// Фоновые сервисы. Останавливаются в обратном порядке: реконсилер (и с ним ffmpeg) первым,
+// блокировка отпускается последней.
+builder.Services.AddSingleton<SingleWorkerLock>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SingleWorkerLock>());
 builder.Services.AddHostedService<HealthReportingService>();
 builder.Services.AddHostedService<ProcessReaperService>();
+builder.Services.AddSingleton<ChannelReconciler>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChannelReconciler>());
 
 var host = builder.Build();
-host.Run();
+await host.Services.GetRequiredService<SingleWorkerLock>().AcquireAsync();
+await host.RunAsync();

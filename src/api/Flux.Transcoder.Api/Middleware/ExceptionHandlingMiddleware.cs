@@ -1,6 +1,7 @@
 using FluentValidation;
 using Flux.Transcoder.Domain.Common;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Flux.Transcoder.Api.Middleware;
 
@@ -25,6 +26,11 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
         catch (InvalidStateTransitionException ex)
         {
             await WriteProblem(context, StatusCodes.Status409Conflict, "Invalid state transition", ex.Message);
+        }
+        catch (DbUpdateConcurrencyException)   // повторы исчерпаны: канал меняют одновременно
+        {
+            await WriteProblem(context, StatusCodes.Status409Conflict, "Concurrent update",
+                "Канал одновременно изменён другим действием, повторите.");
         }
         catch (UnauthorizedException ex)
         {

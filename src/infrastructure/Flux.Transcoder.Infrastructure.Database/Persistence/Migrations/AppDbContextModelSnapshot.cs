@@ -28,6 +28,11 @@ namespace Flux.Transcoder.Infrastructure.Database.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("RunRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("run_revision");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(2048)
@@ -35,6 +40,7 @@ namespace Flux.Transcoder.Infrastructure.Database.Persistence.Migrations
                         .HasColumnName("source_url");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")

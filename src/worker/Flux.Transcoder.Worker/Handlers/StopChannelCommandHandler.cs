@@ -1,17 +1,17 @@
-﻿using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Contracts.Commands;
+using Flux.Transcoder.Worker.Services;
 
 namespace Flux.Transcoder.Worker.Handlers;
 
+/// <summary>Команда — только сигнал: что делать с каналом, реконсилер читает из БД.</summary>
 public sealed class StopChannelCommandHandler
 {
-    public static async Task HandleAsync(
+    public static void Handle(
         StopChannelCommand command,
-        IStreamOrchestrator orchestrator,
-        ILogger<StopChannelCommandHandler>? logger,
-        CancellationToken cancellationToken)
+        ChannelReconciler reconciler,
+        ILogger<StopChannelCommandHandler> logger)
     {
-        logger?.LogInformation("Останавливаю процесс ffmpeg для канала с Id {ChannelId}", command.ChannelId);
-        await orchestrator.StopAsync(command.ChannelId, cancellationToken);
+        logger.LogInformation("StopChannelCommand для канала с Id {ChannelId}", command.ChannelId);
+        reconciler.Trigger(command.ChannelId);
     }
 }

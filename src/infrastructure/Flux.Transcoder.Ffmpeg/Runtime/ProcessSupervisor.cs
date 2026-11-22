@@ -7,12 +7,17 @@ namespace Flux.Transcoder.Ffmpeg.Runtime;
 public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
 {
     private static readonly TimeSpan GracefulStopTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ShutdownTimeout = GracefulStopTimeout + TimeSpan.FromSeconds(5);
 
     private readonly ConcurrentDictionary<Guid, RunningProcess> _processes = new();
+    private volatile bool _closing;
 
-    public RunningProcess Register(Guid channelId, int pid, Process process)
+    /// <summary>Воркер выключается: новые процессы не запускаем.</summary>
+    public bool IsClosing => _closing;
+
+    public RunningProcess Register(Guid channelId, int revision, int pid, Process process)
     {
-        var running = new RunningProcess(channelId, pid, DateTimeOffset.UtcNow, process);
+        var running = new RunningProcess(channelId, revision, pid, DateTimeOffset.UtcNow, process);
         _processes[channelId] = running;
         return running;
     }
@@ -27,8 +32,8 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
 
     /// <summary>
     /// Начинает остановку и сразу возвращает управление; задача завершится после остановки.
-    /// Ждать её в обработчике команд нельзя: очередь одна на все каналы, а зависший на чтении
-    /// источника ffmpeg не реагирует на 'q' — каждый Stop задерживал бы всех на 5 сек.
+    /// Ждать её нельзя: зависший на чтении источника ffmpeg не реагирует на 'q',
+    /// и каждая остановка задерживала бы остальные каналы на 5 сек.
     /// </summary>
     public Task Stop(RunningProcess running)
     {
@@ -38,6 +43,25 @@ public sealed class ProcessSupervisor(ILogger<ProcessSupervisor> logger)
         logger.LogInformation(
             "Stopping channel {ChannelId} (pid {Pid})", running.ChannelId, running.ProcessId);
         return Task.Run(() => TerminateAsync(running));
+    }
+
+    /// <summary>
+    /// Штатное выключение: останавливает всё через 'q', чтобы сегменты дописались.
+    /// Если воркер убит, сюда мы не попадём — тогда работает ChildProcessGuard.
+    /// </summary>
+    public async Task ShutdownAsync()
+    {
+        _closing = true;
+        var timeout = Task.Delay(ShutdownTimeout);
+
+        // циклом: Launch, начатый до _closing, мог успеть зарегистрировать ещё один процесс
+        while (All() is { Count: > 0 } running && !timeout.IsCompleted)
+        {
+            foreach (var process in running)
+                _ = Stop(process);
+
+            await Task.WhenAny(Task.WhenAll(running.Select(p => p.Exited)), timeout);
+        }
     }
 
     public RunningProcess? Get(Guid channelId) =>

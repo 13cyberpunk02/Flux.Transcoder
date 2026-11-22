@@ -24,9 +24,23 @@ public sealed class HealthReportingService(
         {
             foreach (var proc in supervisor.All())
             {
+                if (proc.IntentionalStop)
+                    continue;   // останавливается — его здоровье уже ничего не значит
+
                 var snapshot = progress.Latest(proc.ChannelId);
-                var state = health.Check(proc.ChannelId);
-                var outputKbps = bitrate.MeasureKbps(proc.ChannelId);
+                var state = HealthState.Unknown;
+                double outputKbps = 0;
+                try
+                {
+                    state = health.Check(proc.ChannelId, proc.StartedAt);
+                    outputKbps = bitrate.MeasureKbps(proc.ChannelId);
+                }
+                catch (Exception ex)
+                {
+                    // сбой NAS: исключение из BackgroundService остановило бы воркер и все каналы
+                    logger.LogWarning(
+                        "Хранилище канала {ChannelId} не читается: {Reason}", proc.ChannelId, ex.Message);
+                }
 
                 var report = new ChannelHealthReport(
                     ChannelId: proc.ChannelId,
@@ -35,7 +49,8 @@ public sealed class HealthReportingService(
                     OutputBitrateKbps: outputKbps,
                     DroppedFrames: (int)(snapshot?.DroppedFrames ?? 0),
                     UptimeSeconds: (DateTimeOffset.UtcNow - proc.StartedAt).TotalSeconds,
-                    ReportedAt: DateTimeOffset.UtcNow);
+                    ReportedAt: DateTimeOffset.UtcNow,
+                    RunRevision: proc.Revision);
 
                 try
                 {

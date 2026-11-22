@@ -14,21 +14,20 @@ public class ChannelHealthHandler
         IHubContext<ChannelsHub> hub,
         IRepository<Channel> channels,
         IUnitOfWork unitOfWork,
-        MetricsWriter metrics, 
+        MetricsWriter metrics,
         CancellationToken cancellationToken)
     {
-        await hub.Clients.All.SendAsync("channelHealth", report, cancellationToken);
-        
-        await metrics.WriteAsync(
-            report.ChannelId, report.OutputBitrateKbps, report.DroppedFrames,
-            report.UptimeSeconds, report.Status, cancellationToken);
-        
         var channel = await channels.FirstOrDefaultAsync(
             new ChannelByIdSpec(report.ChannelId), cancellationToken);
 
         if (channel is null) return;
 
-        if (report.Status == "Healthy" && channel.Status is ChannelStatus.Starting or ChannelStatus.Degraded)
+        // Статус — первым: при конфликте с действием пользователя обработчик повторяется с чтения,
+        // и рассылка с метрикой не должны задвоиться.
+        // Ревизия: отчёт прежнего процесса не подтверждает новый запуск.
+        if (report.Status == "Healthy"
+            && report.RunRevision == channel.RunRevision
+            && channel.Status is ChannelStatus.Starting or ChannelStatus.Degraded)
         {
             channel.MarkRunning();
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -37,5 +36,11 @@ public class ChannelHealthHandler
                 new { channelId = channel.Id, status = channel.Status.ToString() },
                 cancellationToken);
         }
+
+        await hub.Clients.All.SendAsync("channelHealth", report, cancellationToken);
+
+        await metrics.WriteAsync(
+            report.ChannelId, report.OutputBitrateKbps, report.DroppedFrames,
+            report.UptimeSeconds, report.Status, cancellationToken);
     }
 }

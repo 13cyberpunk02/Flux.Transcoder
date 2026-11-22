@@ -10,15 +10,16 @@ using Microsoft.Extensions.Options;
 namespace Flux.Transcoder.Ffmpeg.Runtime;
 
 /// <summary>
-/// StartAsync/StopAsync не ждут выхода ffmpeg. Порядок команд канала сохраняется так:
-/// Start во время остановки запоминается и выполняется в Exited старого процесса,
-/// следующий Stop этот отложенный старт отменяет.
+/// StartAsync/StopAsync идемпотентны и не ждут выхода ffmpeg.
+/// StartAsync означает «должен работать процесс ревизии channel.RunRevision»: процесс другой ревизии
+/// останавливается, а новый запускается в его Exited. Следующий Stop отложенный старт отменяет.
 /// </summary>
 public sealed class FfmpegStreamOrchestrator(
     FfmpegArgumentBuilder argumentBuilder,
     ProcessSupervisor supervisor,
     ProgressParser progressParser,
     RestartCoordinator restartCoordinator,
+    ChildProcessGuard processGuard,
     IOptions<FfmpegOptions> options,
     ILogger<FfmpegStreamOrchestrator> logger)
     : IStreamOrchestrator
@@ -28,8 +29,8 @@ public sealed class FfmpegStreamOrchestrator(
 
     private Lock LockFor(Guid channelId) => _locks.GetOrAdd(channelId, _ => new Lock());
 
-    // Токен отменяет только сам запуск. С процессом он НЕ связывается: ffmpeg живёт дольше,
-    // чем обработка сообщения, которое его запустило.
+    // Токен отменяет только сам запуск. С процессом он НЕ связывается: его жизнь
+    // ограничена жизнью воркера (ShutdownAsync + ChildProcessGuard).
     public Task StartAsync(Channel channel, CancellationToken cancellationToken = default)
     {
         lock (LockFor(channel.Id))
@@ -37,30 +38,18 @@ public sealed class FfmpegStreamOrchestrator(
             cancellationToken.ThrowIfCancellationRequested();
 
             var existing = supervisor.Get(channel.Id);
-            if (existing is { HasExited: false })
+            if (existing is null)
             {
-                if (existing.IntentionalStop)
-                {
-                    existing.StartAfterExit = channel;
-                    logger.LogInformation(
-                        "Channel {ChannelId} is stopping, start is deferred until exit", channel.Id);
-                }
-                else
-                {
-                    logger.LogWarning("Channel {ChannelId} already running", channel.Id);
-                }
-
+                Launch(channel);
                 return Task.CompletedTask;
             }
 
-            if (existing is not null)
-            {
-                // процесс уже умер, но Exited ещё не успел снять запись
-                existing.StartAfterExit = null;
-                supervisor.Unregister(existing);
-            }
+            // нужный процесс уже работает (или только что упал — это обработает его Exited)
+            if (!existing.IntentionalStop && existing.Revision == channel.RunRevision)
+                return Task.CompletedTask;
 
-            Launch(channel);
+            existing.StartAfterExit = channel;
+            _ = supervisor.Stop(existing);
             return Task.CompletedTask;
         }
     }
@@ -69,9 +58,6 @@ public sealed class FfmpegStreamOrchestrator(
     {
         lock (LockFor(channelId))
         {
-            // ручная остановка/рестарт — отменяет авто-перезапуск и обнуляет его счётчик
-            restartCoordinator.Reset(channelId);
-
             if (supervisor.Get(channelId) is { } running)
             {
                 running.StartAfterExit = null;
@@ -84,6 +70,9 @@ public sealed class FfmpegStreamOrchestrator(
 
     private void Launch(Channel channel)
     {
+        if (supervisor.IsClosing)
+            return;
+
         var channelId = channel.Id;
         var args = argumentBuilder.Build(channel);
         logger.LogInformation("FFMPEG ARGS: {Args}", string.Join(" ", args));
@@ -103,30 +92,19 @@ public sealed class FfmpegStreamOrchestrator(
 
         var process = new Process { StartInfo = psi };
 
-        // stdout -> парсер прогресса
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                progressParser.Feed(channelId, e.Data);
-        };
-
-        // stderr -> логи
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                logger.LogDebug("[ffmpeg {ChannelId}] {Line}", channelId, e.Data);
-        };
-
-        if (!process.Start())
+        if (!processGuard.Start(process))
         {
             process.Dispose();
             throw new InvalidOperationException($"Failed to start ffmpeg for channel {channelId}.");
         }
 
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        // stdout -> парсер прогресса, stderr -> логи
+        ReadOnOwnThread(process.StandardOutput, "stdout",
+            line => progressParser.Feed(channelId, line));
+        ReadOnOwnThread(process.StandardError, "stderr",
+            line => logger.LogDebug("[ffmpeg {ChannelId}] {Line}", channelId, line));
 
-        var running = supervisor.Register(channelId, process.Id, process);
+        var running = supervisor.Register(channelId, channel.RunRevision, process.Id, process);
         logger.LogInformation("ffmpeg started for {ChannelId}, pid {Pid}", channelId, running.ProcessId);
 
         // события включаем ПОСЛЕ регистрации: у Exited всегда есть свой экземпляр.
@@ -135,13 +113,37 @@ public sealed class FfmpegStreamOrchestrator(
         process.EnableRaisingEvents = true;
     }
 
+    // Не BeginOutputReadLine: на Windows пайпы процесса синхронные, и каждое такое чтение навсегда
+    // занимает поток пула. Уже на 40 каналах пул голодал: старт шёл по каналу в секунду.
+    private void ReadOnOwnThread(StreamReader reader, string name, Action<string> handle)
+    {
+        new Thread(() =>
+        {
+            try
+            {
+                using (reader)
+                {
+                    while (reader.ReadLine() is { } line)
+                        handle(line);
+                }
+            }
+            catch (Exception ex)
+            {
+                // необработанное исключение в своём потоке уронило бы воркер
+                logger.LogWarning(ex, "Чтение {Stream} ffmpeg прервано", name);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = $"ffmpeg-{name}"
+        }.Start();
+    }
+
     private void OnExited(RunningProcess running)
     {
         var channelId = running.ChannelId;
         try
         {
-            var needsRestart = false;
-
             lock (LockFor(channelId))
             {
                 int exitCode;
@@ -155,6 +157,12 @@ public sealed class FfmpegStreamOrchestrator(
                     "ffmpeg exited for {ChannelId}, code {Code}, intentional={Intentional}",
                     channelId, exitCode, wasIntentional);
 
+                // Любой выход не по нашей команде — сбой, в том числе код 0: у живого канала это значит,
+                // что источник закрылся (EOF). Пауза ставится ДО Unregister, иначе сверка с БД,
+                // увидев канал без процесса, запустила бы его мгновенно, в обход backoff.
+                if (!wasIntentional && !supervisor.IsClosing)
+                    restartCoordinator.OnFailure(channelId, running.Revision);
+
                 supervisor.Unregister(running);
                 running.MarkExited();
                 running.Process.Dispose();
@@ -162,30 +170,18 @@ public sealed class FfmpegStreamOrchestrator(
                 var next = running.StartAfterExit;
                 running.StartAfterExit = null;
 
-                if (next is not null && supervisor.Get(channelId) is null)
+                if (next is null || supervisor.Get(channelId) is not null)
+                    return;
+
+                try
                 {
-                    try
-                    {
-                        Launch(next);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Не удался отложенный старт канала {ChannelId}", channelId);
-                        needsRestart = true;
-                    }
+                    Launch(next);
                 }
-                else if (!wasIntentional && exitCode != 0)
+                catch (Exception ex)
                 {
-                    // перезапускаем ТОЛЬКО если остановка не намеренная и процесс завершился с ошибкой
-                    logger.LogWarning(
-                        "ffmpeg для {ChannelId} умер неожиданно (код {Code}) — запускаю перезапуск",
-                        channelId, exitCode);
-                    needsRestart = true;
+                    restartCoordinator.OnLaunchFailed(channelId, next.RunRevision, ex);
                 }
             }
-
-            if (needsRestart)
-                restartCoordinator.OnStalled(channelId);
         }
         catch (Exception ex)
         {
