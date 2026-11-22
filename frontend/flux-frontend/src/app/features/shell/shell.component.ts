@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -83,7 +83,7 @@ import { ChannelsStore } from '../channels/channels.store';
     </div>
   `,
 })
-export class ShellComponent implements OnInit {
+export class ShellComponent implements OnInit, OnDestroy {
   private readonly signalr = inject(SignalRService);
   private readonly tokens = inject(TokenStore);
   private readonly router = inject(Router);
@@ -101,8 +101,12 @@ export class ShellComponent implements OnInit {
     if (!this.channels.loaded()) this.channels.loadAll();
   }
 
-  protected logout(): void {
+  /** Выход или 401 уводят на /login — подключение и его повторы больше не нужны. */
+  ngOnDestroy(): void {
     this.signalr.stop();
+  }
+
+  protected logout(): void {
     this.tokens.clear();
     this.router.navigate(['/login']);
   }

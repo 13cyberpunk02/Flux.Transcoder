@@ -6,8 +6,8 @@ using Flux.Transcoder.Domain.Common;
 namespace Flux.Transcoder.Application.Channels.Commands.DeleteChannel;
 
 /// <summary>
-/// Удаляет канал и его настройки. Записанный архив остаётся на диске —
-/// его удалит только ручная чистка (чистильщик обходит лишь существующие каналы).
+/// Удаляет канал и его настройки. Записанный архив чистильщик удалит,
+/// когда сегменты станут старше максимального срока хранения (RetentionPolicy.MaxRetention).
 /// </summary>
 public class DeleteChannelHandler
 {

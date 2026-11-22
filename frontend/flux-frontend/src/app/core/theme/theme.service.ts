@@ -2,7 +2,7 @@
 
 export type Theme = 'dark' | 'light';
 
-/** CSS-класс тёмной темы — тот же селектор передан в providePrimeNG (darkModeSelector). */
+/** CSS-класс тёмной темы — по нему работает вариант dark: в Tailwind (styles.css). */
 export const DARK_CLASS = 'app-dark';
 const STORAGE_KEY = 'theme';
 

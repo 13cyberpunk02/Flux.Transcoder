@@ -23,8 +23,8 @@ import { codecShort } from '../../core/api/profiles.api';
     </div>
 
     <div class="panel overflow-hidden">
-      <div class="overflow-x-auto">
-        <table mat-table [dataSource]="sorted()" class="min-w-[48rem]">
+      <div class="relative overflow-x-auto">
+        <table mat-table [dataSource]="sorted()" class="w-full min-w-[48rem]">
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef class="w-64">Название</th>
             <td mat-cell *matCellDef="let p" class="font-medium">{{ p.name }}</td>

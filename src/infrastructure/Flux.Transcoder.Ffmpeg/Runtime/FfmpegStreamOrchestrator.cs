@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Flux.Transcoder.Application.Abstractions;
 using Flux.Transcoder.Domain.Channels;
@@ -8,6 +9,11 @@ using Microsoft.Extensions.Options;
 
 namespace Flux.Transcoder.Ffmpeg.Runtime;
 
+/// <summary>
+/// StartAsync/StopAsync не ждут выхода ffmpeg. Порядок команд канала сохраняется так:
+/// Start во время остановки запоминается и выполняется в Exited старого процесса,
+/// следующий Stop этот отложенный старт отменяет.
+/// </summary>
 public sealed class FfmpegStreamOrchestrator(
     FfmpegArgumentBuilder argumentBuilder,
     ProcessSupervisor supervisor,
@@ -17,27 +23,68 @@ public sealed class FfmpegStreamOrchestrator(
     ILogger<FfmpegStreamOrchestrator> logger)
     : IStreamOrchestrator
 {
-    private static readonly TimeSpan GracefulStopTimeout = TimeSpan.FromSeconds(5);
-
     private readonly FfmpegOptions _options = options.Value;
+    private readonly ConcurrentDictionary<Guid, Lock> _locks = new();
 
-    // cancellationToken намеренно НЕ связывается с процессом: ffmpeg живёт дольше,
+    private Lock LockFor(Guid channelId) => _locks.GetOrAdd(channelId, _ => new Lock());
+
+    // Токен отменяет только сам запуск. С процессом он НЕ связывается: ffmpeg живёт дольше,
     // чем обработка сообщения, которое его запустило.
     public Task StartAsync(Channel channel, CancellationToken cancellationToken = default)
     {
-        var existing = supervisor.Get(channel.Id);
-        if (existing is not null)
+        lock (LockFor(channel.Id))
         {
-            if (!existing.HasExited)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var existing = supervisor.Get(channel.Id);
+            if (existing is { HasExited: false })
             {
-                logger.LogWarning("Channel {ChannelId} already running", channel.Id);
+                if (existing.IntentionalStop)
+                {
+                    existing.StartAfterExit = channel;
+                    logger.LogInformation(
+                        "Channel {ChannelId} is stopping, start is deferred until exit", channel.Id);
+                }
+                else
+                {
+                    logger.LogWarning("Channel {ChannelId} already running", channel.Id);
+                }
+
                 return Task.CompletedTask;
             }
 
-            // процесс уже умер, но Exited ещё не успел снять запись (например, сразу после Stop при рестарте)
-            supervisor.Unregister(existing);
-        }
+            if (existing is not null)
+            {
+                // процесс уже умер, но Exited ещё не успел снять запись
+                existing.StartAfterExit = null;
+                supervisor.Unregister(existing);
+            }
 
+            Launch(channel);
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task StopAsync(Guid channelId, CancellationToken cancellationToken = default)
+    {
+        lock (LockFor(channelId))
+        {
+            // ручная остановка/рестарт — отменяет авто-перезапуск и обнуляет его счётчик
+            restartCoordinator.Reset(channelId);
+
+            if (supervisor.Get(channelId) is { } running)
+            {
+                running.StartAfterExit = null;
+                _ = supervisor.Stop(running);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private void Launch(Channel channel)
+    {
+        var channelId = channel.Id;
         var args = argumentBuilder.Build(channel);
         logger.LogInformation("FFMPEG ARGS: {Args}", string.Join(" ", args));
         var psi = new ProcessStartInfo
@@ -54,128 +101,96 @@ public sealed class FfmpegStreamOrchestrator(
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
 
-        var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        var cts = new CancellationTokenSource();
-
-        // присваивается после Register; Exited читает его через замыкание
-        RunningProcess? running = null;
+        var process = new Process { StartInfo = psi };
 
         // stdout -> парсер прогресса
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data is not null)
-                progressParser.Feed(channel.Id, e.Data);
+                progressParser.Feed(channelId, e.Data);
         };
 
         // stderr -> логи
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is not null)
-                logger.LogDebug("[ffmpeg {ChannelId}] {Line}", channel.Id, e.Data);
+                logger.LogDebug("[ffmpeg {ChannelId}] {Line}", channelId, e.Data);
         };
-
-        process.Exited += (_, _) => OnExited(channel.Id, process, running);
 
         if (!process.Start())
         {
-            cts.Dispose();
             process.Dispose();
-            throw new InvalidOperationException($"Failed to start ffmpeg for channel {channel.Id}.");
+            throw new InvalidOperationException($"Failed to start ffmpeg for channel {channelId}.");
         }
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        running = supervisor.Register(channel.Id, process.Id, cts, process);
-        logger.LogInformation(
-            "ffmpeg started for {ChannelId}, pid {Pid}", channel.Id, process.Id);
+        var running = supervisor.Register(channelId, process.Id, process);
+        logger.LogInformation("ffmpeg started for {ChannelId}, pid {Pid}", channelId, running.ProcessId);
 
-        // когда токен отменяют (Stop) — мягко гасим процесс
-        var registered = running;
-        cts.Token.Register(() => TerminateGracefully(registered));
-
-        return Task.CompletedTask;
+        // события включаем ПОСЛЕ регистрации: у Exited всегда есть свой экземпляр.
+        // Если процесс уже умер, событие всё равно придёт.
+        process.Exited += (_, _) => OnExited(running);
+        process.EnableRaisingEvents = true;
     }
 
-    public Task StopAsync(Guid channelId, CancellationToken cancellationToken = default)
+    private void OnExited(RunningProcess running)
     {
-        // ручная остановка/рестарт — счётчик авто-перезапусков начинается заново
-        restartCoordinator.Reset(channelId);
-        supervisor.Stop(channelId);
-        return Task.CompletedTask;
-    }
-
-    private void OnExited(Guid channelId, Process process, RunningProcess? running)
-    {
+        var channelId = running.ChannelId;
         try
         {
-            int exitCode;
-            try { exitCode = process.ExitCode; }
-            catch (InvalidOperationException) { exitCode = -1; }
+            var needsRestart = false;
 
-            // флаг берём у СВОЕГО экземпляра, а не по channelId — после рестарта
-            // в супервизоре уже может лежать новый процесс
-            var wasIntentional = running?.IntentionalStop ?? false;
-
-            logger.LogInformation(
-                "ffmpeg exited for {ChannelId}, code {Code}, intentional={Intentional}",
-                channelId, exitCode, wasIntentional);
-
-            if (running is not null)
-                supervisor.Unregister(running);
-
-            process.Dispose();
-
-            // перезапускаем ТОЛЬКО если остановка не намеренная и процесс завершился с ошибкой
-            if (!wasIntentional && exitCode != 0)
+            lock (LockFor(channelId))
             {
-                logger.LogWarning(
-                    "ffmpeg для {ChannelId} умер неожиданно (код {Code}) — запускаю перезапуск",
-                    channelId, exitCode);
-                restartCoordinator.OnStalled(channelId);
+                int exitCode;
+                try { exitCode = running.Process.ExitCode; }
+                catch (InvalidOperationException) { exitCode = -1; }
+
+                // флаг берём у СВОЕГО экземпляра: в супервизоре уже может лежать новый процесс
+                var wasIntentional = running.IntentionalStop;
+
+                logger.LogInformation(
+                    "ffmpeg exited for {ChannelId}, code {Code}, intentional={Intentional}",
+                    channelId, exitCode, wasIntentional);
+
+                supervisor.Unregister(running);
+                running.MarkExited();
+                running.Process.Dispose();
+
+                var next = running.StartAfterExit;
+                running.StartAfterExit = null;
+
+                if (next is not null && supervisor.Get(channelId) is null)
+                {
+                    try
+                    {
+                        Launch(next);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Не удался отложенный старт канала {ChannelId}", channelId);
+                        needsRestart = true;
+                    }
+                }
+                else if (!wasIntentional && exitCode != 0)
+                {
+                    // перезапускаем ТОЛЬКО если остановка не намеренная и процесс завершился с ошибкой
+                    logger.LogWarning(
+                        "ffmpeg для {ChannelId} умер неожиданно (код {Code}) — запускаю перезапуск",
+                        channelId, exitCode);
+                    needsRestart = true;
+                }
             }
+
+            if (needsRestart)
+                restartCoordinator.OnStalled(channelId);
         }
         catch (Exception ex)
         {
             // исключение из обработчика события на пуле потоков уронило бы весь воркер
             logger.LogError(ex, "Ошибка обработки завершения ffmpeg {ChannelId}", channelId);
-        }
-    }
-
-    private void TerminateGracefully(RunningProcess running)
-    {
-        var process = running.Process;
-        try
-        {
-            if (process.HasExited) return;
-
-            // 'q' в stdin — штатное завершение ffmpeg: дописывает сегмент и плейлист
-            try
-            {
-                process.StandardInput.Write('q');
-                process.StandardInput.Flush();
-            }
-            catch (IOException)
-            {
-                // stdin уже закрыт — сразу к Kill
-            }
-
-            if (process.WaitForExit(GracefulStopTimeout))
-                return;
-
-            logger.LogWarning(
-                "ffmpeg {ChannelId} не завершился по 'q' за {Timeout:g} — убиваю",
-                running.ChannelId, GracefulStopTimeout);
-            process.Kill(entireProcessTree: true);
-            process.WaitForExit(TimeSpan.FromSeconds(2));
-        }
-        catch (InvalidOperationException)
-        {
-            // процесс уже завершился или освобождён обработчиком Exited (ObjectDisposedException)
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error terminating ffmpeg {ChannelId}", running.ChannelId);
         }
     }
 }

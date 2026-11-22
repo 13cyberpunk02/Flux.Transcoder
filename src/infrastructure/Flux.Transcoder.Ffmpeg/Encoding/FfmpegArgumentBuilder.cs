@@ -55,6 +55,15 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
             ":hls_flags=append_list+independent_segments+program_date_time" +
             $":hls_segment_filename={archiveSegments}]{archivePlaylist}";
 
+        // NVENC и QSV по -force_key_frames ставят обычный I-кадр, а HLS режет только по IDR:
+        // без этого сегменты тянутся до конца GOP (10 сек вместо 4).
+        string[] forcedIdr = rendition.Codec switch
+        {
+            EncoderType.Nvenc => ["-forced-idr", "1"],
+            EncoderType.Qsv => ["-forced_idr", "1"],
+            _ => []
+        };
+
         return
         [
             "-hide_banner",
@@ -66,6 +75,7 @@ public sealed class FfmpegArgumentBuilder(FfmpegOptions options)
 
             "-vf", $"scale=w={rendition.Width}:h={rendition.Height}",
             "-c:v", codec,
+            ..forcedIdr,
             "-b:v", $"{rendition.BitrateKbps}k",
             // ключевой кадр ровно на границе сегмента — сегменты строго по hls_time
             "-force_key_frames", $"expr:gte(t,n_forced*{seg})",

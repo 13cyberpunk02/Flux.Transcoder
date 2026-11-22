@@ -16,11 +16,14 @@ export interface ConfirmData {
   selector: 'app-confirm-dialog',
   imports: [MatDialogModule, MatButton, MatIcon],
   template: `
-    <h2 mat-dialog-title class="flex items-center gap-2">
-      @if (data.icon) {
-        <mat-icon [class.text-error]="data.danger">{{ data.icon }}</mat-icon>
-      }
-      {{ data.title }}
+    <h2 mat-dialog-title>
+      <!-- flex не на самом h2: его ::before задаёт верхний отступ и стал бы flex-элементом -->
+      <span class="inline-flex items-center gap-2">
+        @if (data.icon) {
+          <mat-icon [class.text-error]="data.danger">{{ data.icon }}</mat-icon>
+        }
+        {{ data.title }}
+      </span>
     </h2>
     <mat-dialog-content>
       <p class="text-muted">{{ data.message }}</p>

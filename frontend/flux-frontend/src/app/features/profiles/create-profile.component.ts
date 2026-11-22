@@ -34,7 +34,6 @@ const PRESETS: { label: string; r: Omit<RenditionModel, 'codec'> }[] = [
       <h2 mat-dialog-title>Новый профиль</h2>
 
       <mat-dialog-content>
-        <!-- раскладка во внутренней обёртке: стили Material (вне @layer) перекрывают утилиты Tailwind на самом mat-dialog-content -->
         <div class="flex flex-col gap-3 pt-2">
         <mat-form-field>
           <mat-label>Название</mat-label>

@@ -37,7 +37,7 @@ export class ChannelActions {
   async delete(id: string, source: string): Promise<boolean> {
     const ok = await this.confirm({
       title: 'Удалить канал?',
-      message: `Канал «${source}» и его настройки будут удалены. Записанный архив останется на диске.`,
+      message: `Канал «${source}» и его настройки будут удалены. Записанный архив удалится автоматически, когда станет старше 14 дней.`,
       confirmLabel: 'Удалить',
       icon: 'delete',
       danger: true,

@@ -30,6 +30,14 @@ export function formatRetention(minutes: number | null | undefined): string {
   return `${minutes} мин`;
 }
 
+/** Дата из одного поля + часы и минуты из другого; null — если хоть одно некорректно. */
+export function combineDateAndTime(date: Date | null, time: Date | null): Date | null {
+  if (!date || !time || isNaN(date.getTime()) || isNaN(time.getTime())) return null;
+  const result = new Date(date);
+  result.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  return result;
+}
+
 /** Локальное ISO со смещением (2026-07-02T23:44:00+03:00) — сегменты архива названы по локальному времени. */
 export function toLocalIso(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

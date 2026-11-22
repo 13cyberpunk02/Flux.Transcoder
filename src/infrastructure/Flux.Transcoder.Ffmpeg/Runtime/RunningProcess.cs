@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Flux.Transcoder.Domain.Channels;
 
 namespace Flux.Transcoder.Ffmpeg.Runtime;
 
@@ -7,23 +8,32 @@ public sealed class RunningProcess(
     Guid channelId,
     int processId,
     DateTimeOffset startedAt,
-    CancellationTokenSource cts,
     Process process)
 {
-    private volatile bool _intentionalStop;
+    private readonly TaskCompletionSource _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _stopRequested;
 
     public Guid ChannelId { get; } = channelId;
     public int ProcessId { get; } = processId;
     public DateTimeOffset StartedAt { get; } = startedAt;
-    public CancellationTokenSource Cts { get; } = cts;
     public Process Process { get; } = process;
 
-    /// <summary>true, если остановка инициирована через StopAsync (намеренно).</summary>
-    public bool IntentionalStop
-    {
-        get => _intentionalStop;
-        set => _intentionalStop = value;
-    }
+    /// <summary>
+    /// Канал, который надо запустить, когда этот процесс выйдет (Start пришёл во время остановки).
+    /// Читается и меняется только под блокировкой канала в оркестраторе.
+    /// </summary>
+    internal Channel? StartAfterExit { get; set; }
+
+    /// <summary>Завершается, когда обработчик Exited закончил работу с процессом.</summary>
+    internal Task Exited => _exited.Task;
+
+    internal void MarkExited() => _exited.TrySetResult();
+
+    /// <summary>true, если процесс останавливаем мы сами (пользователь или reaper).</summary>
+    public bool IntentionalStop => Volatile.Read(ref _stopRequested) == 1;
+
+    /// <summary>true только у первого вызвавшего — он и останавливает процесс.</summary>
+    internal bool TryRequestStop() => Interlocked.Exchange(ref _stopRequested, 1) == 0;
 
     /// <summary>
     /// Безопасная проверка завершения: Process может быть уже освобождён

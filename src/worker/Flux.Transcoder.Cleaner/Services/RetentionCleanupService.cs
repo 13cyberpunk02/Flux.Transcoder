@@ -55,6 +55,73 @@ public sealed class RetentionCleanupService(
             var cutoff = now - retention;
             CleanupChannel(channelId, cutoff);
         }
+
+        CleanupOrphans(channels.Select(c => c.Id).ToHashSet(), now - RetentionPolicy.MaxRetention);
+    }
+
+    /// <summary>
+    /// Папки удалённых каналов. Их срок хранения уже неизвестен, поэтому берём максимальный:
+    /// так и при подключении не к той БД не удалится ничего моложе MaxRetention.
+    /// Трогаем только свою структуру (папка-GUID, archive/дата/час, live).
+    /// </summary>
+    private void CleanupOrphans(IReadOnlySet<Guid> known, DateTimeOffset cutoff)
+    {
+        if (!Directory.Exists(_options.ArchiveRoot))
+            return;
+
+        foreach (var dir in Directory.GetDirectories(_options.ArchiveRoot))
+        {
+            if (!Guid.TryParseExact(Path.GetFileName(dir), "D", out var id) || known.Contains(id))
+                continue;
+
+            try
+            {
+                var archive = Path.Combine(dir, "archive");
+                var live = Path.Combine(dir, "live");
+
+                // по ссылкам не ходим: за ними может быть чужая папка
+                if (IsLink(dir) || IsLink(archive) || IsLink(live))
+                    continue;
+
+                CleanupChannel(id, cutoff);
+
+                DeleteExpiredFiles(archive, "current.m3u8*", cutoff);
+                DeleteExpiredFiles(live, "seg_*.ts", cutoff);
+                DeleteExpiredFiles(live, "live.m3u8*", cutoff);
+
+                DeleteIfEmpty(archive);
+                DeleteIfEmpty(live);
+                DeleteIfEmpty(dir);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Не удалось очистить папку удалённого канала {Dir}", dir);
+            }
+        }
+    }
+
+    private static bool IsLink(string dir) =>
+        Directory.Exists(dir) && new DirectoryInfo(dir).LinkTarget is not null;
+
+    private void DeleteExpiredFiles(string dir, string pattern, DateTimeOffset cutoff)
+    {
+        if (!Directory.Exists(dir))
+            return;
+
+        foreach (var file in Directory.GetFiles(dir, pattern))
+        {
+            if (File.GetLastWriteTimeUtc(file) < cutoff.UtcDateTime)
+                DeleteFileSafe(file);
+        }
+    }
+
+    private void DeleteIfEmpty(string dir)
+    {
+        if (!Directory.Exists(dir) || Directory.EnumerateFileSystemEntries(dir).Any())
+            return;
+
+        Directory.Delete(dir);   // не рекурсивно
+        logger.LogInformation("Удалена пустая папка удалённого канала: {Dir}", dir);
     }
 
     private void CleanupChannel(Guid channelId, DateTimeOffset cutoff)

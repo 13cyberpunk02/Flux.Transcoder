@@ -1,4 +1,4 @@
-﻿import { Component, computed, inject, input, OnInit, signal } from '@angular/core';
+﻿import { Component, computed, DestroyRef, inject, input, linkedSignal, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -17,7 +17,7 @@ import { BitrateChartComponent } from './bitrate-chart.component';
 import { RetentionSettingsComponent } from './retention-settings.component';
 import { StatusTagComponent } from '../../shared/status-tag.component';
 import { BitratePipe } from '../../core/format/format.pipes';
-import { formatBitrate, formatDuration, toLocalIso } from '../../core/format/format';
+import { combineDateAndTime, formatBitrate, formatDuration, toLocalIso } from '../../core/format/format';
 import { archivePlaylistUrl, livePlaylistUrl } from '../../core/config/endpoints';
 import { canRestart, canStop, isInactive } from '../../core/api/models';
 import { codecShort } from '../../core/api/profiles.api';
@@ -122,23 +122,28 @@ const ARCHIVE_PRESETS = [
               <mat-form-field class="w-40">
                 <mat-label>Дата</mat-label>
                 <input matInput [matDatepicker]="datePicker" [value]="archiveDate()"
-                       (dateChange)="archiveDate.set($event.value ?? archiveDate())"
+                       (dateInput)="pickedDate.set($event.value)" (dateChange)="pickedDate.set($event.value)"
                        [min]="archiveMinDate()" [max]="now()" />
                 <mat-datepicker-toggle matSuffix [for]="datePicker" />
                 <mat-datepicker #datePicker />
               </mat-form-field>
               <mat-form-field class="w-32">
                 <mat-label>Время</mat-label>
-                <input matInput [matTimepicker]="timePicker" [value]="archiveTime()" (valueChange)="archiveTime.set($event)" />
+                <input matInput [matTimepicker]="timePicker" [value]="archiveTime()" (valueChange)="pickedTime.set($event)" />
                 <mat-timepicker-toggle matSuffix [for]="timePicker" />
                 <mat-timepicker #timePicker interval="5min" />
               </mat-form-field>
-              <button matButton="filled" (click)="watchArchive()"><mat-icon>play_arrow</mat-icon> Смотреть</button>
+              <button matButton="filled" [disabled]="!!momentError()" (click)="watchArchive()">
+                <mat-icon>play_arrow</mat-icon> Смотреть
+              </button>
+              @if (momentError(); as error) {
+                <p role="alert" class="w-full text-xs text-error">{{ error }}</p>
+              }
             </div>
           }
 
           @if (playerSrc(); as src) {
-            <app-player [src]="src" (failed)="onPlayerFailed()" />
+            <app-player [src]="src" [live]="mode() === 'live'" (failed)="onPlayerFailed()" />
           } @else {
             <div class="aspect-video flex flex-col items-center justify-center gap-3 text-muted px-6 text-center">
               <span class="material-symbols-outlined !text-5xl opacity-50" aria-hidden="true">videocam_off</span>
@@ -236,6 +241,22 @@ export class ChannelDetailComponent implements OnInit {
   /** Выбор момента архива: дата и время отдельно (mat-datepicker + mat-timepicker). */
   protected readonly archiveDate = signal(new Date(Date.now() - 60 * 60_000));
   protected readonly archiveTime = signal<Date | null>(new Date(Date.now() - 60 * 60_000));
+  /**
+   * Ввод держим отдельно от [value] полей: обратная запись в [value] переформатировала бы
+   * текст прямо во время набора. null — введено что-то некорректное.
+   */
+  protected readonly pickedDate = linkedSignal<Date | null>(() => this.archiveDate());
+  protected readonly pickedTime = linkedSignal<Date | null>(() => this.archiveTime());
+  private readonly pickedMoment = computed(() => combineDateAndTime(this.pickedDate(), this.pickedTime()));
+  protected readonly momentError = computed(() => {
+    const moment = this.pickedMoment();
+    if (!moment) return 'Введите дату как дд.мм.гггг и время как чч:мм';
+    if (moment > this.now()) return 'Этот момент ещё не наступил';
+    const min = this.archiveMinDate();
+    if (min && moment < min) return 'Этот момент старше срока хранения архива';
+    return undefined;
+  });
+
   /** Момент, с которого реально играет архив (после «Смотреть» / пресета / клика по графику). */
   protected readonly appliedFrom = signal<Date | undefined>(undefined);
 
@@ -279,6 +300,12 @@ export class ChannelDetailComponent implements OnInit {
     ];
   });
 
+  constructor() {
+    // «сейчас» — граница допустимого момента; на открытой странице она должна двигаться
+    const clock = setInterval(() => this.now.set(new Date()), 15_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(clock));
+  }
+
   ngOnInit(): void {
     this.store.loadChannel(this.id());
     if (!this.profiles.loaded()) this.profiles.loadAll();
@@ -290,10 +317,8 @@ export class ChannelDetailComponent implements OnInit {
   }
 
   protected watchArchive(): void {
-    const date = new Date(this.archiveDate());
-    const time = this.archiveTime();
-    if (time) date.setHours(time.getHours(), time.getMinutes(), 0, 0);
-    this.watchArchiveFrom(date);
+    const moment = this.pickedMoment();
+    if (moment && !this.momentError()) this.watchArchiveFrom(moment);
   }
 
   protected watchArchiveAgo(minutes: number): void {

@@ -24,7 +24,6 @@ const SOURCE_SCHEME = /^(srt|rtmp|udp):\/\/.+/i;
       <h2 mat-dialog-title>Новый канал</h2>
 
       <mat-dialog-content>
-        <!-- раскладка во внутренней обёртке: стили Material (вне @layer) перекрывают утилиты Tailwind на самом mat-dialog-content -->
         <div class="flex flex-col gap-2 pt-2">
         <mat-form-field>
           <mat-label>Источник</mat-label>

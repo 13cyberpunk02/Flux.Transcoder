@@ -1,4 +1,8 @@
-@import "tailwindcss";
+/*
+ * important: стили Material идут вне @layer и иначе перебивают любую утилиту
+ * (text-right, flex, w-* на элементах Material молча не работают).
+ */
+@import "tailwindcss" important;
 @import "material-symbols/outlined.css";
 @import "@fontsource-variable/inter/index.css";
 

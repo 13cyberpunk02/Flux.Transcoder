@@ -21,6 +21,10 @@ public sealed class ProcessReaperService(
             {
                 try
                 {
+                    // уже останавливается: запись снимет Exited, он же запустит отложенный старт
+                    if (proc.IntentionalStop)
+                        continue;
+
                     // процесс уже умер, но запись висит — подчищаем
                     if (proc.HasExited)
                     {
@@ -40,6 +44,7 @@ public sealed class ProcessReaperService(
                     {
                         logger.LogWarning(
                             "Канал {ChannelId} завис — свежие сегменты не приходят", proc.ChannelId);
+                        _ = supervisor.Stop(proc);   // выхода не ждём: обход остальных каналов не задерживается
                         restartCoordinator.OnStalled(proc.ChannelId);
                     }
                     else if (state == HealthState.Healthy)

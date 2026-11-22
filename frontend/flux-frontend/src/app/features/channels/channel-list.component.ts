@@ -84,9 +84,10 @@ interface ChannelRow {
         </mat-form-field>
       </div>
 
-      <div class="overflow-x-auto">
+      <!-- relative: иначе sr-only в заголовке выходит за прокрутку и расширяет страницу -->
+      <div class="relative overflow-x-auto">
         <table mat-table [dataSource]="dataSource" matSort matSortActive="status" matSortDirection="asc"
-               class="min-w-[60rem]">
+               class="w-full min-w-[60rem]">
           <ng-container matColumnDef="status">
             <th mat-header-cell *matHeaderCellDef mat-sort-header class="w-40">Статус</th>
             <td mat-cell *matCellDef="let row"><app-status-tag [status]="row.status" /></td>
