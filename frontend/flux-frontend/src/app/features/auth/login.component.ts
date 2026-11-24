@@ -100,10 +100,11 @@ export class LoginComponent {
         this.tokens.set(res.token);
         await this.router.navigate(['/channels']);
       } catch (err) {
+        const status = err instanceof HttpErrorResponse ? err.status : 0;
         this.error.set(
-          err instanceof HttpErrorResponse && err.status === 401
-            ? 'Неверный логин или пароль'
-            : 'Сервер недоступен, попробуйте позже');
+          status === 401 ? 'Неверный логин или пароль'
+          : status === 429 ? 'Слишком много попыток входа. Подождите минуту и попробуйте снова'
+          : 'Сервер недоступен, попробуйте позже');
       }
     });
   }

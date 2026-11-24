@@ -4,7 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <UserSecretsId>dotnet-Flux.Transcoder.Cleaner-cd998ec6-f6a7-4507-852e-2f5944725bc6</UserSecretsId>
+        <UserSecretsId>flux-transcoder</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>

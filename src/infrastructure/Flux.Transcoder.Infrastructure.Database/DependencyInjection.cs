@@ -1,4 +1,5 @@
 using Flux.Transcoder.Application.Abstractions;
+using Flux.Transcoder.Infrastructure.Database.Configuration;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
 using Flux.Transcoder.Infrastructure.Database.Persistence.Repositories;
 using Flux.Transcoder.Infrastructure.Database.Security;
@@ -15,8 +16,8 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // DbContext
-        services.AddDbContextPool<AppDbContext>(opts =>
-            opts.UseNpgsql(configuration.GetConnectionString("flux_transcoder_db")));
+        var connectionString = configuration.GetRequired(RequiredSettings.Database);
+        services.AddDbContextPool<AppDbContext>(opts => opts.UseNpgsql(connectionString));
 
         // Репозитории (открытые дженерики)
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));

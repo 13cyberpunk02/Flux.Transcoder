@@ -46,7 +46,7 @@ Flux.Transcoder takes live streams from SRT, RTMP or UDP sources, encodes them w
   - FFmpeg never outlives the worker (Job Object on Windows, `setpriv --pdeathsig` on Linux);
   - a standby worker takes over when the active one dies.
 - 🖥️ **Operator console:** Angular Material 3, dark and light themes, Russian UI.
-- 🔐 **Auth:** JWT, users stored in the database.
+- 🔐 **Security:** JWT, users stored in the database, no secrets in the repository, login limited to 10 attempts per minute per IP.
 
 ## 🏗️ Architecture
 
@@ -124,14 +124,29 @@ Flux.Transcoder/
 
 ### 1. Infrastructure
 
-Set the storage folder in `deploy/docker-compose.yml` (the `nginx` volume, `D:/fluxcast/storage` by default), then:
+Set the storage folder in `deploy/docker-compose.yml` (the `nginx` volume, `D:/fluxcast/storage` by default). Logins and passwords for PostgreSQL and RabbitMQ are read from `deploy/.env`, which is not in git:
 
 ```bash
 cd deploy
+cp .env.example .env      # then set your own passwords
 docker compose up -d
 ```
 
-### 2. Backend
+### 2. Secrets
+
+There are no passwords or keys in the repository. Without them the services refuse to start and name the missing setting. For local development keep them in [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets): one store is shared by the API, the worker and the cleaner.
+
+```bash
+P=src/api/Flux.Transcoder.Api
+dotnet user-secrets set "ConnectionStrings:flux_transcoder_db" "Host=localhost;Port=5432;Database=flux_transcoder_db;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>" --project $P
+dotnet user-secrets set "ConnectionStrings:RabbitMq" "amqp://<RABBITMQ_USER>:<RABBITMQ_PASSWORD>@localhost:5672" --project $P
+dotnet user-secrets set "Jwt:SigningKey" "<random string, at least 32 bytes>" --project $P
+dotnet user-secrets set "Seed:AdminPassword" "<password of the admin user>" --project $P
+```
+
+On a server use environment variables instead: `ConnectionStrings__flux_transcoder_db`, `ConnectionStrings__RabbitMq`, `Jwt__SigningKey`, `Seed__AdminPassword`.
+
+### 3. Backend
 
 ```bash
 # API: applies migrations and creates the first user on start
@@ -144,7 +159,7 @@ dotnet run --project src/worker/Flux.Transcoder.Worker
 dotnet run --project src/worker/Flux.Transcoder.Cleaner
 ```
 
-### 3. Frontend
+### 4. Frontend
 
 ```bash
 cd frontend/flux-frontend
@@ -152,10 +167,10 @@ npm install
 npm start
 ```
 
-Open http://localhost:4200 and sign in as `admin` / `admin`.
+Open http://localhost:4200 and sign in as `admin` with the password from `Seed:AdminPassword`.
 
-> [!WARNING]
-> The repository ships development credentials: the `admin` / `admin` user, database and RabbitMQ passwords and the JWT signing key in `appsettings.json`. Change all of them before any non-local use.
+> [!NOTE]
+> If `Seed:AdminPassword` is not set, the API creates `admin` with a random password and prints it to the log once. A database created by an older version still has `admin` / `admin`: the API replaces it with `Seed:AdminPassword` on start and warns while it is not set.
 
 ### Useful URLs
 
@@ -169,13 +184,15 @@ Open http://localhost:4200 and sign in as `admin` / `admin`.
 
 ## ⚙️ Configuration
 
-All settings live in `appsettings.json` of each service and can be overridden with environment variables (`Section__Key`, for example `Ffmpeg__SegmentRoot`).
+Regular settings live in `appsettings.json` of each service, secrets in user-secrets or environment variables. Any setting can be overridden with an environment variable (`Section__Key`, for example `Ffmpeg__SegmentRoot`).
 
 | Key | Service | Default | Meaning |
 |---|---|---|---|
-| `ConnectionStrings:flux_transcoder_db` | API, Worker, Cleaner | local PostgreSQL | database |
-| `ConnectionStrings:RabbitMq` | API, Worker | `amqp://...@localhost:5672` | message broker |
-| `Jwt:Issuer`, `Jwt:Audience`, `Jwt:SigningKey` | API | dev values | JWT tokens |
+| `ConnectionStrings:flux_transcoder_db` 🔑 | API, Worker, Cleaner | required | database |
+| `ConnectionStrings:RabbitMq` 🔑 | API, Worker | required | message broker |
+| `Jwt:SigningKey` 🔑 | API | required, 32+ bytes | JWT signing key |
+| `Seed:AdminPassword` 🔑 | API | random, printed once | password of the first `admin` |
+| `Jwt:Issuer`, `Jwt:Audience` | API | `flux-transcoder` | JWT tokens |
 | `Archive:SegmentRoot` | API | `D:\fluxcast\storage` | storage root for DVR playlists |
 | `Archive:NginxBaseUrl` | API | `http://localhost:3088` | public HLS base URL |
 | `Ffmpeg:BinaryPath` | Worker | `ffmpeg` | FFmpeg executable |

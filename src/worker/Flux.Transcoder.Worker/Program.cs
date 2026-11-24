@@ -2,6 +2,7 @@ using Flux.Transcoder.Contracts.Events;
 using Flux.Transcoder.Contracts.Messaging;
 using Flux.Transcoder.Ffmpeg;
 using Flux.Transcoder.Infrastructure.Database;
+using Flux.Transcoder.Infrastructure.Database.Configuration;
 using Flux.Transcoder.Infrastructure.Database.Persistence;
 using Flux.Transcoder.Worker.Services;
 using Microsoft.EntityFrameworkCore;
@@ -32,8 +33,7 @@ builder.UseWolverine(opts =>
 {
     opts.UseRuntimeCompilation();
 
-    var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
-                 ?? "amqp://dev_user:dev_pass12345@localhost:5672";
+    var rabbit = builder.Configuration.GetRequired(RequiredSettings.RabbitMq);
 
     // 1) СНАЧАЛА транспорт
     opts.UseRabbitMq(new Uri(rabbit))

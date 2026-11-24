@@ -4,6 +4,8 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <!-- один secrets.json на API, воркер и чистильщик: dotnet user-secrets, см. README -->
+        <UserSecretsId>flux-transcoder</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,6 +13,8 @@
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9"/>
+        <!-- транзитивная 2.0.0 уязвима (GHSA-v5pm-xwqc-g5wc), исправлено в 2.7.5 -->
+        <PackageReference Include="Microsoft.OpenApi" Version="2.13.1" />
         <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
         <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
         <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.15.0" />

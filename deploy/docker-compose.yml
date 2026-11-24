@@ -6,9 +6,10 @@ services:
     # без предзагрузки расширения: "extension must be preloaded"
     command: postgres -c shared_preload_libraries=timescaledb
     environment:
-      POSTGRES_USER: dev_user
-      POSTGRES_PASSWORD: dev_pass12345
-      POSTGRES_DB: flux_transcoder_db
+      # значения из deploy/.env (не в git), образец: deploy/.env.example
+      POSTGRES_USER: ${POSTGRES_USER:?задайте в deploy/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте в deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-flux_transcoder_db}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -19,8 +20,8 @@ services:
     container_name: flux_transcoder_rabbitmq_broker
     restart: always
     environment:
-      RABBITMQ_DEFAULT_USER: dev_user
-      RABBITMQ_DEFAULT_PASS: dev_pass12345
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?задайте в deploy/.env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?задайте в deploy/.env}
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"

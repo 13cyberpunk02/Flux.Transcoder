@@ -1,5 +1,6 @@
 using Flux.Transcoder.Application;
 using Flux.Transcoder.Infrastructure.Database;
+using Flux.Transcoder.Infrastructure.Database.Configuration;
 using Flux.Transcoder.Infrastructure.Database.Logging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -7,7 +8,9 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text;
+using System.Threading.RateLimiting;
 using Flux.Transcoder.Api.Archive;
+using Flux.Transcoder.Api.Endpoints;
 using Flux.Transcoder.Api.Extensions;
 using Flux.Transcoder.Api.Hubs;
 using Flux.Transcoder.Api.Messaging;
@@ -60,8 +63,7 @@ builder.Host.UseWolverine(options =>
     options.UseApplicationLayer();
     options.UseFluentValidation();
 
-    var rabbit = builder.Configuration.GetConnectionString("RabbitMq")
-                 ?? "amqp://dev_user:dev_pass12345@localhost:5672";
+    var rabbit = builder.Configuration.GetRequired(RequiredSettings.RabbitMq);
 
     // 1) СНАЧАЛА транспорт
     options.UseRabbitMq(new Uri(rabbit))
@@ -70,7 +72,7 @@ builder.Host.UseWolverine(options =>
     // Outbox: команда пишется в одной транзакции с каналом и досылается после сбоя брокера или API.
     // Solo — API один (у SignalR нет backplane): недосланное подхватывается сразу при старте.
     options.PersistMessagesWithPostgresql(
-        builder.Configuration.GetConnectionString("flux_transcoder_db")!, "wolverine");
+        builder.Configuration.GetRequired(RequiredSettings.Database), "wolverine");
     options.UseEntityFrameworkCoreTransactions();
     options.Durability.Mode = DurabilityMode.Solo;
 
@@ -96,8 +98,12 @@ builder.Host.UseWolverine(options =>
     options.ListenToRabbitQueue(Queues.HealthReports);
 });
 
-// JWT-аутентификация
+// JWT-аутентификация. Ключ подписи только из user-secrets или переменной окружения.
 var jwt = builder.Configuration.GetSection("Jwt");
+var signingKey = Encoding.UTF8.GetBytes(builder.Configuration.GetRequired(RequiredSettings.JwtSigningKey));
+if (signingKey.Length < RequiredSettings.MinJwtKeyBytes)
+    throw new InvalidOperationException(
+        $"{RequiredSettings.JwtSigningKey} короче {RequiredSettings.MinJwtKeyBytes} байт: для HS256 нужен ключ от 256 бит.");
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -110,8 +116,7 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwt["Issuer"],
             ValidAudience = jwt["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwt["SigningKey"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(signingKey)
         };
 
         // SignalR по WebSocket/SSE не может послать заголовок Authorization и передаёт токен
@@ -132,6 +137,36 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
+
+// Подбор пароля: не больше 10 попыток входа в минуту с одного IP.
+// За reverse proxy нужен UseForwardedHeaders, иначе все клиенты будут одним IP.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(AuthEndpoints.LoginRateLimit, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    options.OnRejected = async (context, token) =>
+    {
+        var response = context.HttpContext.Response;
+        response.StatusCode = StatusCodes.Status429TooManyRequests;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+
+        await response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Too many requests",
+            Detail = "Слишком много попыток входа. Подождите минуту и попробуйте снова."
+        }, token);
+    };
+});
 
 // CORS под Angular
 const string AngularCors = "angular";
@@ -165,6 +200,7 @@ app.UseExceptionHandling();
 app.UseCors(AngularCors);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapWolverineEndpoints();
 

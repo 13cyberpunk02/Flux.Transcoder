@@ -46,7 +46,7 @@ Flux.Transcoder принимает прямые эфиры из SRT, RTMP или
   - FFmpeg не переживает воркер (Job Object на Windows, `setpriv --pdeathsig` на Linux);
   - резервный воркер подхватывает каналы, если активный упал.
 - 🖥️ **Пульт оператора:** Angular Material 3, тёмная и светлая темы, интерфейс на русском.
-- 🔐 **Авторизация:** JWT, пользователи в базе данных.
+- 🔐 **Безопасность:** JWT, пользователи в базе данных, секретов в репозитории нет, вход ограничен 10 попытками в минуту с одного IP.
 
 ## 🏗️ Архитектура
 
@@ -124,14 +124,29 @@ Flux.Transcoder/
 
 ### 1. Инфраструктура
 
-Укажите папку хранилища в `deploy/docker-compose.yml` (том сервиса `nginx`, по умолчанию `D:/fluxcast/storage`), затем:
+Укажите папку хранилища в `deploy/docker-compose.yml` (том сервиса `nginx`, по умолчанию `D:/fluxcast/storage`). Логины и пароли PostgreSQL и RabbitMQ берутся из `deploy/.env`, которого нет в git:
 
 ```bash
 cd deploy
+cp .env.example .env      # затем задайте свои пароли
 docker compose up -d
 ```
 
-### 2. Бэкенд
+### 2. Секреты
+
+Паролей и ключей в репозитории нет. Без них сервисы не стартуют и называют недостающий параметр. Для локальной разработки храните их в [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets): хранилище общее для API, воркера и чистильщика.
+
+```bash
+P=src/api/Flux.Transcoder.Api
+dotnet user-secrets set "ConnectionStrings:flux_transcoder_db" "Host=localhost;Port=5432;Database=flux_transcoder_db;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>" --project $P
+dotnet user-secrets set "ConnectionStrings:RabbitMq" "amqp://<RABBITMQ_USER>:<RABBITMQ_PASSWORD>@localhost:5672" --project $P
+dotnet user-secrets set "Jwt:SigningKey" "<случайная строка от 32 байт>" --project $P
+dotnet user-secrets set "Seed:AdminPassword" "<пароль пользователя admin>" --project $P
+```
+
+На сервере вместо этого используйте переменные окружения: `ConnectionStrings__flux_transcoder_db`, `ConnectionStrings__RabbitMq`, `Jwt__SigningKey`, `Seed__AdminPassword`.
+
+### 3. Бэкенд
 
 ```bash
 # API: при старте применяет миграции и создаёт первого пользователя
@@ -144,7 +159,7 @@ dotnet run --project src/worker/Flux.Transcoder.Worker
 dotnet run --project src/worker/Flux.Transcoder.Cleaner
 ```
 
-### 3. Фронтенд
+### 4. Фронтенд
 
 ```bash
 cd frontend/flux-frontend
@@ -152,10 +167,10 @@ npm install
 npm start
 ```
 
-Откройте http://localhost:4200 и войдите как `admin` / `admin`.
+Откройте http://localhost:4200 и войдите как `admin` с паролем из `Seed:AdminPassword`.
 
-> [!WARNING]
-> В репозитории лежат данные для разработки: пользователь `admin` / `admin`, пароли базы данных и RabbitMQ, ключ подписи JWT в `appsettings.json`. Замените их все перед любым использованием вне локальной машины.
+> [!NOTE]
+> Если `Seed:AdminPassword` не задан, API создаст `admin` со случайным паролем и один раз напечатает его в лог. В базе, созданной прежней версией, у `admin` остался пароль `admin`: при старте API заменит его на `Seed:AdminPassword`, а пока он не задан, будет предупреждать.
 
 ### Полезные адреса
 
@@ -169,13 +184,15 @@ npm start
 
 ## ⚙️ Настройка
 
-Все настройки лежат в `appsettings.json` каждого сервиса и переопределяются переменными окружения (`Раздел__Ключ`, например `Ffmpeg__SegmentRoot`).
+Обычные настройки лежат в `appsettings.json` каждого сервиса, секреты в user-secrets или переменных окружения. Любой параметр переопределяется переменной окружения (`Раздел__Ключ`, например `Ffmpeg__SegmentRoot`).
 
 | Ключ | Сервис | По умолчанию | Назначение |
 |---|---|---|---|
-| `ConnectionStrings:flux_transcoder_db` | API, Worker, Cleaner | локальный PostgreSQL | база данных |
-| `ConnectionStrings:RabbitMq` | API, Worker | `amqp://...@localhost:5672` | брокер сообщений |
-| `Jwt:Issuer`, `Jwt:Audience`, `Jwt:SigningKey` | API | значения для разработки | JWT-токены |
+| `ConnectionStrings:flux_transcoder_db` 🔑 | API, Worker, Cleaner | обязателен | база данных |
+| `ConnectionStrings:RabbitMq` 🔑 | API, Worker | обязателен | брокер сообщений |
+| `Jwt:SigningKey` 🔑 | API | обязателен, от 32 байт | ключ подписи JWT |
+| `Seed:AdminPassword` 🔑 | API | случайный, печатается один раз | пароль первого `admin` |
+| `Jwt:Issuer`, `Jwt:Audience` | API | `flux-transcoder` | JWT-токены |
 | `Archive:SegmentRoot` | API | `D:\fluxcast\storage` | корень хранилища для DVR-плейлистов |
 | `Archive:NginxBaseUrl` | API | `http://localhost:3088` | публичный адрес HLS |
 | `Ffmpeg:BinaryPath` | Worker | `ffmpeg` | исполняемый файл FFmpeg |
