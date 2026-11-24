@@ -32,7 +32,9 @@ services:
     image: nginx:alpine
     container_name: flux-nginx
     ports:
-      - "3088:80"
+      # по умолчанию только локально: HLS (включая архив) отдаётся без авторизации.
+      # Открыть в сеть: HLS_BIND=0.0.0.0 в deploy/.env, но лучше за reverse proxy.
+      - "${HLS_BIND:-127.0.0.1}:3088:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - D:/fluxcast/storage:/srv/hls:ro

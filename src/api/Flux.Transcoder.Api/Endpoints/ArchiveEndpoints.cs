@@ -1,34 +1,26 @@
 ﻿using Flux.Transcoder.Api.Archive;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Cors;
 using Wolverine.Http;
 
 namespace Flux.Transcoder.Api.Endpoints;
 
+[Authorize]
 public class ArchiveEndpoints
 {
-    // Плейлист отдаётся плееру напрямую — без JWT-заголовка (плеер его не пошлёт).
-    // [WolverineGet("/api/channels/{id:guid}/archive.m3u8")]
-    // [AllowAnonymous]
-    // public static IResult GetArchive(
-    //     Guid id,
-    //     DateTimeOffset from,
-    //     ArchivePlaylistBuilder builder)
-    // {
-    //     var playlist = builder.Build(id, from);
-    //     return playlist is null ? 
-    //         Results.NotFound("Нет сегментов с указанного момента.") : 
-    //         Results.Text(playlist, "application/vnd.apple.mpegurl");
-    // }
-    
+    /// <summary>
+    /// DVR-плейлист с момента from. Плеер (hls.js) присылает JWT в заголовке,
+    /// поэтому анонимно перебирать архив больше нельзя.
+    /// </summary>
     [WolverineGet("/api/channels/{id:guid}/archive")]
-    [AllowAnonymous]
-    [EnableCors("player")]           // <- политика для плеера
-    public static IResult GetArchivePlayer(Guid id, DateTimeOffset from, ArchivePlaylistBuilder builder)
+    public static IResult GetArchivePlayer(Guid id, DateTimeOffset? from, ArchivePlaylistBuilder builder)
     {
-        var playlist = builder.Build(id, from);
-        return playlist is null ? 
-            Results.NotFound("Нет сегментов с указанного момента.") : 
-            Results.Text(playlist, "application/vnd.apple.mpegurl");
+        if (from is null)
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Validation failed", detail: "Укажите момент начала архива: параметр from.");
+
+        var playlist = builder.Build(id, from.Value);
+        return playlist is null
+            ? Results.NotFound("Нет сегментов с указанного момента.")
+            : Results.Text(playlist, "application/vnd.apple.mpegurl");
     }
 }

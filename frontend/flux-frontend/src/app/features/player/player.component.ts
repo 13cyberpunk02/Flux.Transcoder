@@ -1,7 +1,8 @@
 ﻿import {
-  Component, ElementRef, effect, input, OnDestroy, output, signal, untracked, viewChild,
+  Component, ElementRef, effect, inject, input, OnDestroy, output, signal, untracked, viewChild,
 } from '@angular/core';
 import Hls from 'hls.js';
+import { TokenStore } from '../../core/auth/token.store';
 
 const LIVE_RETRY_MS = 2000;
 
@@ -36,6 +37,8 @@ export class PlayerComponent implements OnDestroy {
   readonly failed = output<string>();
 
   protected readonly waiting = signal(false);
+
+  private readonly tokens = inject(TokenStore);
 
   private readonly videoRef = viewChild.required<ElementRef<HTMLVideoElement>>('video');
   private hls?: Hls;
@@ -75,6 +78,13 @@ export class PlayerComponent implements OnDestroy {
     const hls = new Hls({
       liveSyncDurationCount: 3,
       backBufferLength: 180,
+      // Архивный плейлист отдаёт API, он требует JWT. Заголовок только для своего origin:
+      // на nginx (другой origin) он вызвал бы CORS preflight, который nginx не разрешает.
+      xhrSetup: (xhr, requestUrl) => {
+        const token = this.tokens.token();
+        if (token && new URL(requestUrl, location.href).origin === location.origin)
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      },
     });
     hls.on(Hls.Events.FRAG_BUFFERED, () => this.waiting.set(false));
     hls.on(Hls.Events.ERROR, (_, data) => {

@@ -4,6 +4,7 @@ using Flux.Transcoder.Infrastructure.Database.Configuration;
 using Flux.Transcoder.Infrastructure.Database.Logging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
@@ -136,7 +137,10 @@ builder.Services
             }
         };
     });
-builder.Services.AddAuthorization();
+// Закрыто по умолчанию: всё, что не помечено [AllowAnonymous], требует входа,
+// и новый эндпоинт не окажется открытым по забывчивости.
+builder.Services.AddAuthorization(options =>
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 // Подбор пароля: не больше 10 попыток входа в минуту с одного IP.
 // За reverse proxy нужен UseForwardedHeaders, иначе все клиенты будут одним IP.
@@ -170,7 +174,6 @@ builder.Services.AddRateLimiter(options =>
 
 // CORS под Angular
 const string AngularCors = "angular";
-const string PlayerCors = "player";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AngularCors, policy =>
@@ -179,10 +182,6 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials());
     
-    options.AddPolicy(PlayerCors, policy =>
-        policy.AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod());
 });
 
 var app = builder.Build();
@@ -192,7 +191,8 @@ await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
 await DbSeeder.SeedAdminAsync(app.Services);
-app.MapHub<ChannelsHub>("/hubs/channels");
+// закрывать соединение, когда истекает JWT: иначе разлогиненный пользователь получал бы данные дальше
+app.MapHub<ChannelsHub>("/hubs/channels", options => options.CloseOnAuthenticationExpiration = true);
 
 // pipeline
 app.UseSerilogRequestLogging();
@@ -206,11 +206,12 @@ app.MapWolverineEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // документация только в Development и без входа: её читает сам Scalar
+    app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(options =>
     {
         options.WithOpenApiRoutePattern("/openapi/{documentName}.json");
-    });
+    }).AllowAnonymous();
 }
 
 app.Run();

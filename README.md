@@ -46,7 +46,7 @@ Flux.Transcoder takes live streams from SRT, RTMP or UDP sources, encodes them w
   - FFmpeg never outlives the worker (Job Object on Windows, `setpriv --pdeathsig` on Linux);
   - a standby worker takes over when the active one dies.
 - 🖥️ **Operator console:** Angular Material 3, dark and light themes, Russian UI.
-- 🔐 **Security:** JWT, users stored in the database, no secrets in the repository, login limited to 10 attempts per minute per IP.
+- 🔐 **Security:** JWT, users stored in the database, no secrets in the repository, login limited to 10 attempts per minute per IP. Everything except login requires a token: REST, the archive playlist, metrics and the SignalR hub (the connection closes when the token expires).
 
 ## 🏗️ Architecture
 
@@ -179,7 +179,7 @@ Open http://localhost:4200 and sign in as `admin` with the password from `Seed:A
 | Operator console | http://localhost:4200 |
 | API | http://localhost:5000 |
 | API reference (Scalar, Development) | http://localhost:5000/scalar |
-| HLS (nginx) | http://localhost:3088 |
+| HLS (nginx, local only by default, see `HLS_BIND` in `deploy/.env.example`) | http://localhost:3088 |
 | RabbitMQ management | http://localhost:15672 |
 
 ## ⚙️ Configuration
